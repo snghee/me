@@ -1,332 +1,102 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SBJ Bank 내부 포털 - Top-Down 메뉴</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+// 1. 메뉴 렌더링 함수 수정
+function renderTopMenu() {
+    const menuContainer = document.getElementById('navbar-menu');
+    menuContainer.innerHTML = '';
 
-        body {
-            font-family: 'Segoe UI', Apple SD Gothic Neo, sans-serif;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            background: #f8f9fa;
-        }
+    for (const [title, content] of Object.entries(menuData)) {
+        const navItem = document.createElement('div');
+        navItem.className = 'nav-item';
+        // 데이터 속성을 부여하여 마우스 진입 시 식별 가능하게 함
+        navItem.setAttribute('data-menu-type', typeof content === 'string' ? content : 'STATIC');
+        navItem.setAttribute('data-title', title);
 
-        /* ===== 상단 네비게이션 (Top-Down 핵심) ===== */
-        .navbar {
-            background: #1a252f;
-            color: white;
-            display: flex;
-            align-items: center;
-            padding: 0 40px;
-            height: 64px;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+        const navLink = document.createElement('div');
+        navLink.className = 'nav-link';
+        navLink.innerHTML = `${title} ▾`;
 
-        .navbar-brand {
-            font-size: 20px;
-            font-weight: 800;
-            margin-right: 40px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        dropdown.id = `dropdown-${title.replace(/\s+/g, '')}`; // ID 부여
 
-        .navbar-menu {
-            display: flex;
-            height: 100%;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .nav-item {
-            position: relative;
-            height: 100%;
-            display: flex;
-            align-items: center;
-        }
-
-        .nav-link {
-            padding: 0 18px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: 500;
-            transition: background 0.3s;
-            color: rgba(255,255,255,0.85);
-        }
-
-        .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-
-        /* 드롭다운 메뉴 스타일 */
-        .dropdown {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background: white;
-            min-width: 220px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            border-radius: 0 0 8px 8px;
-            padding: 8px 0;
-            z-index: 2000;
-            border-top: 2px solid #3498db;
-        }
-
-        .nav-item:hover .dropdown {
-            display: block; /* 마우스 오버 시 자동 표시 */
-        }
-
-        .dropdown-item {
-            padding: 12px 20px;
-            font-size: 14px;
-            color: #333;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .dropdown-item:hover {
-            background: #f1f8ff;
-            color: #3498db;
-            padding-left: 25px;
-        }
-
-        .dropdown-folder {
-            padding: 10px 20px 5px;
-            font-size: 11px;
-            color: #999;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        /* ===== 콘텐츠 영역 (중앙 집중식) ===== */
-        .content {
-            flex: 1;
-            width: 100%;
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            background: white;
-            min-height: calc(100vh - 64px);
-            box-shadow: 0 0 20px rgba(0,0,0,0.02);
-        }
-
-        .breadcrumb {
-            font-size: 13px;
-            color: #6c757d;
-            margin-bottom: 25px;
-            display: flex;
-            gap: 8px;
-        }
-
-        /* 통계 및 대시보드 스타일링 */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin: 30px 0;
-        }
-
-        .stat-card {
-            padding: 24px;
-            border-radius: 12px;
-            text-align: center;
-            border: 1px solid #edf2f7;
-        }
-
-        /* 모바일 대응 */
-        .hamburger { display: none; }
-
-        @media (max-width: 768px) {
-            .navbar { padding: 0 15px; }
-            .navbar-menu { display: none; }
-            .hamburger { display: block; background:none; border:none; color:white; font-size:24px; margin-left:auto; }
-            .dashboard-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-
-    <nav class="navbar">
-        <div class="navbar-brand" onclick="location.reload()">🏦 SBJ Bank</div>
-        <div class="navbar-menu" id="navbar-menu">
-            </div>
-        <button class="hamburger" onclick="toggleMobileMenu()">☰</button>
-    </nav>
-
-    <div class="content markdown-body" id="content">
-        <div id="dashboard">
-            <header style="margin-bottom: 40px;">
-                <h1>포털 대시보드</h1>
-                <p style="color: #666;">SBJ Bank 내부 문서 및 자료실 통합 관리 시스템입니다.</p>
-            </header>
-
-            <div class="dashboard-grid">
-                <div class="stat-card" style="background: #eef2ff;">
-                    <div id="stat-visits" style="font-size: 32px; font-weight: 700; color: #4f46e5;">0</div>
-                    <div style="font-size: 14px; color: #666;">누적 접속</div>
-                </div>
-                <div class="stat-card" style="background: #ecfdf5;">
-                    <div id="stat-downloads" style="font-size: 32px; font-weight: 700; color: #10b981;">0</div>
-                    <div style="font-size: 14px; color: #666;">파일 다운로드</div>
-                </div>
-                <div class="stat-card" style="background: #fffbeb;">
-                    <div id="stat-files" style="font-size: 32px; font-weight: 700; color: #f59e0b;">0</div>
-                    <div style="font-size: 14px; color: #666;">관리 파일 수</div>
-                </div>
-            </div>
-
-            <section>
-                <h3>📅 최근 접속 로그</h3>
-                <div id="visit-log" style="background: #fff; border: 1px solid #eee; border-radius: 8px; overflow: hidden; margin-top: 15px;">
-                    <div style="padding: 20px; color: #999; text-align: center;">데이터를 불러오는 중...</div>
-                </div>
-            </section>
-        </div>
-    </div>
-
-    <script>
-        const GOOGLE_API_KEY = 'YOUR_API_KEY'; 
-        const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
-
-        // 메뉴 구성 데이터
-        const menuData = {
-            "회사소개": {
-                "개요": "company-overview.md",
-                "비전": "mission-vision.md",
-                "조직도": "team-intro.md"
-            },
-            "Cloud 자료실": "DRIVE",  // 동적 로드 트리거
-            "로컬 지식고": "OBSIDIAN", // 동적 로드 트리거
-            "고객지원": {
-                "사용 매뉴얼": "user-manual.md",
-                "FAQ": "faq.md",
-                "통계보기": "STATS"
-            }
-        };
-
-        // 초기 실행
-        window.onload = () => {
-            renderTopMenu();
-            renderDashboard();
-            recordVisit();
-        };
-
-        function renderTopMenu() {
-            const menuContainer = document.getElementById('navbar-menu');
-            menuContainer.innerHTML = '';
-
-            for (const [title, content] of Object.entries(menuData)) {
-                const navItem = document.createElement('div');
-                navItem.className = 'nav-item';
-
-                const navLink = document.createElement('div');
-                navLink.className = 'nav-link';
-                navLink.innerHTML = `${title} ▾`;
-
-                const dropdown = document.createElement('div');
-                dropdown.className = 'dropdown';
-
-                // 하위 메뉴 구성
-                if (typeof content === 'object') {
-                    for (const [name, path] of Object.entries(content)) {
-                        const item = document.createElement('div');
-                        item.className = 'dropdown-item';
-                        item.textContent = name;
-                        item.onclick = () => loadFile(path, name, title);
-                        dropdown.appendChild(item);
-                    }
-                } else if (content === 'DRIVE') {
-                    navItem.onmouseenter = () => populateDriveMenu(dropdown, title);
-                } else if (content === 'OBSIDIAN') {
-                    navItem.onmouseenter = () => populateObsidianMenu(dropdown, title);
-                }
-
-                navItem.appendChild(navLink);
-                navItem.appendChild(dropdown);
-                menuContainer.appendChild(navItem);
+        // 정적 메뉴인 경우 미리 아이템 생성
+        if (typeof content === 'object') {
+            for (const [name, path] of Object.entries(content)) {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.textContent = name;
+                item.onclick = () => loadFile(path, name, title);
+                dropdown.appendChild(item);
             }
         }
 
-        // 파일 로드 로직 (기존 로직 최적화)
-        async function loadFile(path, name, folder) {
-            const contentArea = document.getElementById('content');
-            
-            if (path === 'STATS') {
-                showStatsPage();
-                return;
+        // 마우스 올릴 때 이벤트 리스너 추가 (onmouseenter 대신 addEventListener 권장)
+        navItem.addEventListener('mouseenter', async () => {
+            if (content === 'DRIVE') {
+                await populateDriveMenu(dropdown, title);
+            } else if (content === 'OBSIDIAN') {
+                await populateObsidianMenu(dropdown, title);
             }
+        });
 
-            contentArea.innerHTML = `
-                <div class="breadcrumb">홈 > ${folder} > <strong>${name}</strong></div>
-                <div style="text-align:center; padding:50px;">
-                    <div class="loading-spinner"></div>
-                    <p>문서를 불러오는 중입니다...</p>
-                </div>
-            `;
+        navItem.appendChild(navLink);
+        navItem.appendChild(dropdown);
+        menuContainer.appendChild(navItem);
+    }
+}
 
-            try {
-                const response = await fetch(path);
-                const text = await response.text();
-                // 여기에 markdownToHtml 함수 연결
-                contentArea.innerHTML = `
-                    <div class="breadcrumb">홈 > ${folder} > <strong>${name}</strong></div>
-                    <article class="markdown-body">
-                        <h1>${name}</h1>
-                        <hr>
-                        ${markdownToHtml(text)}
-                    </article>
-                `;
-            } catch (e) {
-                contentArea.innerHTML = `<div class="error">파일을 불러올 수 없습니다. (경로: ${path})</div>`;
-            }
+// 2. 구글 드라이브 동적 로드 함수 (실제 작동부)
+async function populateDriveMenu(dropdown, folderName) {
+    // 이미 로드되었다면 다시 호출하지 않음 (초기 로딩 속도 최적화)
+    if (dropdown.querySelector('.dropdown-item')) return;
+
+    dropdown.innerHTML = '<div class="dropdown-item">🔄 로딩 중...</div>';
+
+    try {
+        const files = await fetchDriveFilesFromFolder(SERVICE_FOLDER_ID);
+        dropdown.innerHTML = ''; // 로딩 메시지 제거
+
+        if (files.length === 0) {
+            dropdown.innerHTML = '<div class="dropdown-item">파일이 없습니다.</div>';
+            return;
         }
 
-        // --- 기존 기능 유지용 마크다운 변환 함수 ---
-        function markdownToHtml(md) {
-            return md.replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                     .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                     .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-                     .replace(/\n/gim, '<br>');
-        }
+        files.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            item.textContent = '📄 ' + file.name;
+            item.onclick = (e) => {
+                e.stopPropagation();
+                // 기존 index.html의 드라이브 파일 로드 로직 호출
+                // (file.id를 전달하여 로드하도록 설정)
+                loadFile(file.id, file.name, folderName);
+            };
+            dropdown.appendChild(item);
+        });
+    } catch (err) {
+        dropdown.innerHTML = '<div class="dropdown-item" style="color:red;">⚠️ 로드 실패</div>';
+        console.error(err);
+    }
+}
 
-        function recordVisit() {
-            let visits = JSON.parse(localStorage.getItem('visitLog')) || [];
-            visits.unshift({ time: new Date().toLocaleString(), ip: '접속중' });
-            localStorage.setItem('visitLog', JSON.stringify(visits.slice(0, 10)));
-        }
+// 3. 옵시디안 동적 로드 함수
+async function populateObsidianMenu(dropdown, folderName) {
+    if (dropdown.querySelector('.dropdown-item')) return;
 
-        function renderDashboard() {
-            const visits = JSON.parse(localStorage.getItem('visitLog')) || [];
-            document.getElementById('stat-visits').textContent = visits.length;
-            
-            const logContainer = document.getElementById('visit-log');
-            if(visits.length > 0) {
-                logContainer.innerHTML = visits.map(v => 
-                    `<div style="padding:12px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; font-size:14px;">
-                        <span>👤 내부 사용자</span>
-                        <span style="color:#999;">${v.time}</span>
-                    </div>`
-                ).join('');
-            }
-        }
-    </script>
-</body>
-</html>
+    dropdown.innerHTML = '<div class="dropdown-item">🔄 서버 연결 중...</div>';
+
+    try {
+        const response = await fetch('http://localhost:3000/api/obsidian-files');
+        const files = await response.json();
+        dropdown.innerHTML = '';
+
+        files.slice(0, 15).forEach(file => { // 너무 많으면 15개로 제한
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            item.textContent = '📝 ' + file.name;
+            item.onclick = () => loadFile(file.path, file.name, folderName);
+            dropdown.appendChild(item);
+        });
+    } catch (err) {
+        dropdown.innerHTML = '<div class="dropdown-item" style="color:red;">⚠️ 서버 오프라인</div>';
+    }
+}
