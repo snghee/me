@@ -1,102 +1,223 @@
-// 1. 메뉴 렌더링 함수 수정
-function renderTopMenu() {
-    const menuContainer = document.getElementById('navbar-menu');
-    menuContainer.innerHTML = '';
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBJ Bank - Top-Down Dynamic Menu</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f8f9fa; }
 
-    for (const [title, content] of Object.entries(menuData)) {
-        const navItem = document.createElement('div');
-        navItem.className = 'nav-item';
-        // 데이터 속성을 부여하여 마우스 진입 시 식별 가능하게 함
-        navItem.setAttribute('data-menu-type', typeof content === 'string' ? content : 'STATIC');
-        navItem.setAttribute('data-title', title);
+        /* 상단 네비게이션 바 */
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+            height: 60px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
 
-        const navLink = document.createElement('div');
-        navLink.className = 'nav-link';
-        navLink.innerHTML = `${title} ▾`;
+        .navbar-brand { font-weight: bold; font-size: 20px; margin-right: 40px; cursor: pointer; }
 
-        const dropdown = document.createElement('div');
-        dropdown.className = 'dropdown';
-        dropdown.id = `dropdown-${title.replace(/\s+/g, '')}`; // ID 부여
+        .navbar-menu { display: flex; height: 100%; }
 
-        // 정적 메뉴인 경우 미리 아이템 생성
-        if (typeof content === 'object') {
-            for (const [name, path] of Object.entries(content)) {
+        /* 개별 메뉴 아이템 */
+        .nav-item {
+            position: relative;
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-link {
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        /* 호버 효과 */
+        .nav-item:hover .nav-link { background: rgba(255,255,255,0.1); }
+
+        /* 드롭다운 메뉴 핵심 설정 */
+        .dropdown {
+            display: none; /* 기본값 숨김 */
+            position: absolute;
+            top: 60px; /* navbar 높이에 맞춤 */
+            left: 0;
+            background: white;
+            min-width: 220px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border-radius: 0 0 4px 4px;
+            padding: 10px 0;
+            z-index: 2000;
+            border-top: 2px solid #3498db;
+        }
+
+        /* 마우스를 올리면 드롭다운 표시 */
+        .nav-item:hover .dropdown {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 12px 20px;
+            color: #333;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .dropdown-item:hover { background: #f1f8ff; color: #3498db; }
+
+        .content { max-width: 1000px; margin: 40px auto; padding: 20px; background: white; min-height: 80vh; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-brand" onclick="location.reload()">🏦 SBJ Bank</div>
+    <div class="navbar-menu" id="navbar-menu">
+        </div>
+</nav>
+
+<div class="content markdown-body" id="content">
+    <h1>환영합니다</h1>
+    <p>상단 메뉴에서 문서를 선택해주세요.</p>
+</div>
+
+<script>
+    const GOOGLE_API_KEY = 'YOUR_API_KEY';
+    const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
+
+    const menuData = {
+        "회사소개": {
+            "개요": "overview.md",
+            "조직도": "org.md"
+        },
+        "Cloud 자료실": "DRIVE",
+        "로컬 지식고": "OBSIDIAN"
+    };
+
+    function renderTopMenu() {
+        const menuContainer = document.getElementById('navbar-menu');
+        menuContainer.innerHTML = '';
+
+        Object.entries(menuData).forEach(([title, content]) => {
+            const navItem = document.createElement('div');
+            navItem.className = 'nav-item';
+
+            const navLink = document.createElement('div');
+            navLink.className = 'nav-link';
+            navLink.innerHTML = `${title} ▾`;
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'dropdown';
+
+            // 정적 메뉴 처리
+            if (typeof content === 'object') {
+                Object.entries(content).forEach(([name, path]) => {
+                    addDropdownItem(dropdown, name, path, title);
+                });
+            }
+
+            // [핵심] 동적 로딩 이벤트 리스너
+            navItem.addEventListener('mouseenter', async () => {
+                if (content === 'DRIVE') {
+                    await populateDriveMenu(dropdown, title);
+                } else if (content === 'OBSIDIAN') {
+                    await populateObsidianMenu(dropdown, title);
+                }
+            });
+
+            navItem.appendChild(navLink);
+            navItem.appendChild(dropdown);
+            menuContainer.appendChild(navItem);
+        });
+    }
+
+    function addDropdownItem(parent, name, path, folder) {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.textContent = name;
+        item.onclick = () => loadFile(path, name, folder);
+        parent.appendChild(item);
+    }
+
+    async function populateDriveMenu(dropdown, folderName) {
+        // 이미 데이터가 있으면 중복 호출 방지
+        if (dropdown.children.length > 0 && !dropdown.innerText.includes("로딩")) return;
+
+        dropdown.innerHTML = '<div class="dropdown-item">🔄 로딩 중...</div>';
+
+        try {
+            // 실제 API 호출 (가정: 기존 코드의 fetchDriveFilesFromFolder 함수 사용)
+            const files = await fetchDriveFilesFromFolder(SERVICE_FOLDER_ID); 
+            dropdown.innerHTML = ''; 
+
+            if (!files || files.length === 0) {
+                dropdown.innerHTML = '<div class="dropdown-item">파일이 없습니다.</div>';
+                return;
+            }
+
+            files.forEach(file => {
                 const item = document.createElement('div');
                 item.className = 'dropdown-item';
-                item.textContent = name;
-                item.onclick = () => loadFile(path, name, title);
+                item.textContent = '📄 ' + file.name;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    loadFile(file.id, file.name, folderName);
+                };
                 dropdown.appendChild(item);
-            }
+            });
+        } catch (err) {
+            dropdown.innerHTML = '<div class="dropdown-item">⚠️ 연결 실패</div>';
         }
-
-        // 마우스 올릴 때 이벤트 리스너 추가 (onmouseenter 대신 addEventListener 권장)
-        navItem.addEventListener('mouseenter', async () => {
-            if (content === 'DRIVE') {
-                await populateDriveMenu(dropdown, title);
-            } else if (content === 'OBSIDIAN') {
-                await populateObsidianMenu(dropdown, title);
-            }
-        });
-
-        navItem.appendChild(navLink);
-        navItem.appendChild(dropdown);
-        menuContainer.appendChild(navItem);
     }
-}
 
-// 2. 구글 드라이브 동적 로드 함수 (실제 작동부)
-async function populateDriveMenu(dropdown, folderName) {
-    // 이미 로드되었다면 다시 호출하지 않음 (초기 로딩 속도 최적화)
-    if (dropdown.querySelector('.dropdown-item')) return;
+    async function populateObsidianMenu(dropdown, folderName) {
+        if (dropdown.children.length > 0 && !dropdown.innerText.includes("연결")) return;
+        dropdown.innerHTML = '<div class="dropdown-item">🔄 서버 연결 중...</div>';
 
-    dropdown.innerHTML = '<div class="dropdown-item">🔄 로딩 중...</div>';
-
-    try {
-        const files = await fetchDriveFilesFromFolder(SERVICE_FOLDER_ID);
-        dropdown.innerHTML = ''; // 로딩 메시지 제거
-
-        if (files.length === 0) {
-            dropdown.innerHTML = '<div class="dropdown-item">파일이 없습니다.</div>';
-            return;
+        try {
+            const response = await fetch('http://localhost:3000/api/obsidian-files');
+            const files = await response.json();
+            dropdown.innerHTML = '';
+            files.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.textContent = '📝 ' + file.name;
+                item.onclick = () => loadFile(file.path, file.name, folderName);
+                dropdown.appendChild(item);
+            });
+        } catch (err) {
+            dropdown.innerHTML = '<div class="dropdown-item">⚠️ 서버 오프라인</div>';
         }
-
-        files.forEach(file => {
-            const item = document.createElement('div');
-            item.className = 'dropdown-item';
-            item.textContent = '📄 ' + file.name;
-            item.onclick = (e) => {
-                e.stopPropagation();
-                // 기존 index.html의 드라이브 파일 로드 로직 호출
-                // (file.id를 전달하여 로드하도록 설정)
-                loadFile(file.id, file.name, folderName);
-            };
-            dropdown.appendChild(item);
-        });
-    } catch (err) {
-        dropdown.innerHTML = '<div class="dropdown-item" style="color:red;">⚠️ 로드 실패</div>';
-        console.error(err);
     }
-}
 
-// 3. 옵시디안 동적 로드 함수
-async function populateObsidianMenu(dropdown, folderName) {
-    if (dropdown.querySelector('.dropdown-item')) return;
-
-    dropdown.innerHTML = '<div class="dropdown-item">🔄 서버 연결 중...</div>';
-
-    try {
-        const response = await fetch('http://localhost:3000/api/obsidian-files');
-        const files = await response.json();
-        dropdown.innerHTML = '';
-
-        files.slice(0, 15).forEach(file => { // 너무 많으면 15개로 제한
-            const item = document.createElement('div');
-            item.className = 'dropdown-item';
-            item.textContent = '📝 ' + file.name;
-            item.onclick = () => loadFile(file.path, file.name, folderName);
-            dropdown.appendChild(item);
-        });
-    } catch (err) {
-        dropdown.innerHTML = '<div class="dropdown-item" style="color:red;">⚠️ 서버 오프라인</div>';
+    function loadFile(path, name, folder) {
+        document.getElementById('content').innerHTML = `<h2>${name}</h2><p>${folder}의 내용을 불러왔습니다.</p>`;
+        // 실제 마크다운 렌더링 로직 추가 가능
     }
-}
+
+    // 초기 실행
+    window.onload = renderTopMenu;
+
+    // (참고) 구글 API 연동 함수 예시 (기존 파일에 있던 로직)
+    async function fetchDriveFilesFromFolder(folderId) {
+        // 실제 fetch 로직이 들어가야 함
+        // 예시용 가짜 데이터 리턴 (테스트용)
+        return new Promise(resolve => setTimeout(() => resolve([
+            {id: '1', name: '업무규정.pdf'},
+            {id: '2', name: '비상연락망.md'}
+        ]), 800));
+    }
+</script>
+</body>
+</html>
