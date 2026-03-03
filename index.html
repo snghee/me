@@ -6,164 +6,154 @@
     <title>폴더 메뉴 시스템 - 동적 파일 로드</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
-            height: 100vh;
+            flex-direction: column;
+            min-height: 100vh;
             background: #f5f5f5;
         }
-        
-        .sidebar {
-            width: 250px;
+
+        /* ===== 상단 네비게이션 ===== */
+        .navbar {
             background: #2c3e50;
             color: white;
-            overflow-y: auto;
-            padding: 20px 0;
-            scrollbar-width: thin;
-            scrollbar-color: #4a6280 #2c3e50;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            height: 56px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            flex-shrink: 0;
         }
 
-        .sidebar::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .sidebar::-webkit-scrollbar-track {
-            background: #2c3e50;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb {
-            background-color: #4a6280;
-            border-radius: 3px;
-        }
-        
-        .menu-item {
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-left: 3px solid transparent;
-        }
-        
-        .menu-item:hover {
-            background: #34495e;
-            border-left-color: #3498db;
-        }
-        
-        .menu-item.active {
-            background: #3498db;
-            border-left-color: #2980b9;
+        .navbar-brand {
+            font-size: 18px;
             font-weight: bold;
+            margin-right: 30px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        .submenu {
-            padding-left: 40px;
-            max-height: 0;
+
+        .navbar-menu {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .navbar-menu::-webkit-scrollbar { display: none; }
+
+        /* 상단 메뉴 아이템 (드롭다운 컨테이너) */
+        .nav-item {
+            position: relative;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: background 0.2s;
+            user-select: none;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: #3d5166;
+        }
+
+        .nav-link .arrow {
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .nav-link.open .arrow {
+            transform: rotate(180deg);
+        }
+
+        /* 드롭다운 */
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: #2c3e50;
+            min-width: 200px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
             overflow: hidden;
-            transition: max-height 0.4s ease;
-        }
-        
-        .submenu.active {
-            max-height: 100vh;
+            z-index: 2000;
+            max-height: 70vh;
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: #4a6280 #2c3e50;
         }
 
-        .submenu.active::-webkit-scrollbar {
-            width: 4px;
+        .dropdown.show { display: block; }
+
+        .dropdown::-webkit-scrollbar { width: 4px; }
+        .dropdown::-webkit-scrollbar-thumb { background: #4a6280; border-radius: 2px; }
+
+        .dropdown-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: rgba(255,255,255,0.85);
+            transition: background 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .submenu.active::-webkit-scrollbar-thumb {
-            background-color: #4a6280;
-            border-radius: 3px;
+        .dropdown-item:last-child { border-bottom: none; }
+
+        .dropdown-item:hover {
+            background: #3498db;
+            color: white;
         }
-        
-        .submenu-item {
-            padding: 10px 0;
-            cursor: pointer;
-            font-size: 14px;
-            opacity: 0.8;
-            transition: all 0.2s ease;
-        }
-        
-        .submenu-item:hover {
-            opacity: 1;
-            padding-left: 10px;
-        }
-        
-        .submenu-item.active {
+
+        .dropdown-item.active {
             color: #f39c12;
             font-weight: bold;
         }
-        
+
+        /* 폴더 헤더 (드롭다운 내부) */
+        .dropdown-folder {
+            padding: 6px 16px 4px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(0,0,0,0.15);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* ===== 콘텐츠 ===== */
         .content {
             flex: 1;
-            padding: 40px;
+            padding: 32px 40px;
             overflow-y: auto;
             background: white;
-            display: flex;
-            flex-direction: column;
         }
-        
+
         .content.markdown-body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
             font-size: 16px;
             line-height: 1.6;
             color: #24292e;
-        }
-        
-        .content-placeholder {
-            text-align: center;
-            color: #999;
-            padding: 60px 20px;
-        }
-
-        /* 초기 로딩 화면에 표시할 로고 */
-        .initial-logo {
-            max-width: 70%;
-            height: auto;
-            display: block;
-            margin: 0 auto 20px;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-        
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .error {
-            background: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        
-        .toggle-icon {
-            float: right;
-            font-size: 12px;
         }
 
         .breadcrumb {
@@ -174,45 +164,36 @@
             border-bottom: 1px solid #eee;
         }
 
-        /* 파일 미리보기 스타일 */
-        .file-preview {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            max-width: 600px;
-            max-height: 70vh;
-            overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            z-index: 10000;
-            display: none;
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
         }
 
-        .file-preview.show {
-            display: block;
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
 
-        .file-preview-header {
-            font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        .file-preview-content {
-            font-size: 13px;
-            line-height: 1.6;
-            color: #333;
-            white-space: pre-wrap;
-            word-break: break-word;
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
         }
 
-        /* 통계 패널 */
         .stats-panel {
             background: #f9f9f9;
             border: 1px solid #ddd;
@@ -231,26 +212,131 @@
             justify-content: space-between;
         }
 
-        .stat-item:last-child {
-            border-bottom: none;
+        .stat-item:last-child { border-bottom: none; }
+
+        /* 파일 미리보기 */
+        .file-preview {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 600px;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 10000;
+            display: none;
+        }
+        .file-preview.show { display: block; }
+
+        /* ===== 햄버거 (모바일) ===== */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            margin-left: auto;
+            padding: 4px 8px;
         }
 
+        /* 모바일 드로어 오버레이 */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1500;
+        }
+        .mobile-overlay.show { display: block; }
+
+        /* 모바일 드로어 */
+        .mobile-drawer {
+            position: fixed;
+            top: 0; right: -280px;
+            width: 260px;
+            height: 100vh;
+            background: #2c3e50;
+            color: white;
+            z-index: 1800;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            padding: 60px 0 20px;
+        }
+        .mobile-drawer.open { right: 0; }
+
+        .drawer-close {
+            position: absolute;
+            top: 14px; right: 14px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+        .drawer-section {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .drawer-section-title {
+            padding: 8px 20px 4px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .drawer-item {
+            padding: 11px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            color: rgba(255,255,255,0.85);
+            transition: background 0.15s;
+        }
+
+        .drawer-item:hover { background: #3498db; color: white; }
+        .drawer-item.active { color: #f39c12; font-weight: bold; }
+
+        /* ===== 반응형 ===== */
         @media (max-width: 768px) {
-            .sidebar {
-                width: 200px;
-            }
-            
-            .content {
-                padding: 20px;
+            .navbar-menu { display: none; }
+            .hamburger { display: block; }
+            .content { padding: 20px 16px; }
+            #dashboard > div:nth-child(2) {
+                grid-template-columns: 1fr !important;
             }
         }
-    </style>
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .content { padding: 24px 28px; }
+        }
+</style>
 </head>
 <body>
-    <div class="sidebar" id="sidebar">
-        <!-- 메뉴가 여기에 동적으로 생성됩니다 -->
+    <!-- 상단 네비게이션 -->
+    <nav class="navbar">
+        <div class="navbar-brand">🏦 SBJ Bank</div>
+        <div class="navbar-menu" id="navbar-menu">
+            <!-- 메뉴가 여기에 동적으로 생성됩니다 -->
+        </div>
+        <button class="hamburger" onclick="toggleDrawer()">☰</button>
+    </nav>
+
+    <!-- 모바일 오버레이 & 드로어 -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeDrawer()"></div>
+    <div class="mobile-drawer" id="mobileDrawer">
+        <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        <div id="mobile-drawer-content">
+            <!-- 모바일 메뉴 -->
+        </div>
     </div>
-    
+
     <div class="content markdown-body" id="content">
         <div id="dashboard">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
@@ -489,7 +575,7 @@
                 const files = await fetchDriveFilesFromFolder(SERVICE_FOLDER_ID);
                 if (files.length === 0) {
                     const emptyItem = document.createElement('div');
-                    emptyItem.className = 'submenu-item';
+                    emptyItem.className = 'dropdown-item';
                     emptyItem.textContent = '(Google Drive에 파일이 없습니다)';
                     submenuElement.appendChild(emptyItem);
                     return;
@@ -497,12 +583,12 @@
 
                 files.forEach(file => {
                     const menuItem = document.createElement('div');
-                    menuItem.className = 'submenu-item';
+                    menuItem.className = 'dropdown-item';
                     menuItem.textContent = '📄 ' + file.name;
 
                     menuItem.onclick = async (e) => {
                         e.stopPropagation();
-                        document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+                        document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
                         menuItem.classList.add('active');
 
                         const contentDiv = document.getElementById('content');
@@ -525,7 +611,7 @@
 
                             contentDiv.className = 'content markdown-body';
                             contentDiv.innerHTML = `
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                                     <div>
                                         <div class="breadcrumb">자료실(구글드라이브) > ${file.name}</div>
                                         <h2>${file.name}</h2>
@@ -552,7 +638,7 @@
             } catch (err) {
                 console.error('Drive 파일 목록 로드 오류:', err);
                 const errorItem = document.createElement('div');
-                errorItem.className = 'submenu-item error';
+                errorItem.className = 'dropdown-item error';
                 errorItem.textContent = 'Google Drive 목록을 불러오지 못했습니다.';
                 submenuElement.appendChild(errorItem);
             }
@@ -570,7 +656,7 @@ async function populateObsidianMenu(submenuElement, folderName) {
 
         if (files.length === 0) {
             const emptyItem = document.createElement('div');
-            emptyItem.className = 'submenu-item';
+            emptyItem.className = 'dropdown-item';
             emptyItem.textContent = '(파일이 없습니다)';
             submenuElement.appendChild(emptyItem);
             return;
@@ -588,7 +674,7 @@ async function populateObsidianMenu(submenuElement, folderName) {
         Object.keys(grouped).sort().forEach(folder => {
             // 폴더 헤더
             const folderDiv = document.createElement('div');
-            folderDiv.style.cssText = 'font-size:12px; margin-top:10px; padding:4px 8px; background:#3d5166; color:#a8c0d6; border-radius:3px; cursor:pointer;';
+            folderDiv.className = 'dropdown-folder';
             folderDiv.textContent = '📁 ' + folder;
 
             const fileList = document.createElement('div');
@@ -611,7 +697,7 @@ async function populateObsidianMenu(submenuElement, folderName) {
 
                 menuItem.onclick = async (e) => {
                     e.stopPropagation();
-                    document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+                    document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
                     menuItem.classList.add('active');
 
                     try {
@@ -622,7 +708,7 @@ async function populateObsidianMenu(submenuElement, folderName) {
                         const htmlContent = markdownToHtml(data);
                         const contentDiv = document.getElementById('content');
                         contentDiv.innerHTML = `
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                                 <div>
                                     <div class="breadcrumb">자료실(옵시디안) > ${folder} > ${file.name}</div>
                                     <h2>${file.name}</h2>
@@ -647,7 +733,7 @@ async function populateObsidianMenu(submenuElement, folderName) {
     } catch (err) {
         console.error('Obsidian 파일 목록 로드 오류:', err);
         const errorItem = document.createElement('div');
-        errorItem.className = 'submenu-item error';
+        errorItem.className = 'dropdown-item error';
         errorItem.textContent = '⚠️ 로컬 서버가 실행 중이 아닙니다. server.js를 시작하세요.';
         submenuElement.appendChild(errorItem);
     }
@@ -890,54 +976,134 @@ async function populateObsidianMenu(submenuElement, folderName) {
         }
 
         // 메뉴 생성
+        // 현재 열린 드롭다운 추적
+        let activeDropdown = null;
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('show'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('open'));
+            activeDropdown = null;
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.nav-item')) closeAllDropdowns();
+        });
+
         function renderMenu() {
+            const navbarMenu = document.getElementById('navbar-menu');
+            const drawerContent = document.getElementById('mobile-drawer-content');
+
             for (const [folder, items] of Object.entries(menuData)) {
-                const folderDiv = document.createElement('div');
-                
-                const folderItem = document.createElement('div');
-                folderItem.className = 'menu-item';
-                folderItem.innerHTML = `${folder} <span class="toggle-icon">▼</span>`;
-                folderItem.onclick = async (e) => {
+                // ===== 데스크탑 드롭다운 =====
+                const navItem = document.createElement('div');
+                navItem.className = 'nav-item';
+
+                const navLink = document.createElement('div');
+                navLink.className = 'nav-link';
+                navLink.innerHTML = `${folder} <span class="arrow">▾</span>`;
+
+                const dropdown = document.createElement('div');
+                dropdown.className = 'dropdown';
+
+                navLink.onclick = async (e) => {
                     e.stopPropagation();
-                    const submenu = folderDiv.querySelector('.submenu');
-                    submenu.classList.toggle('active');
-                    // 자료실(구글드라이브) 폴더는 클릭 시 드라이브 목록을 로드
-                    if (folder === '자료실(구글드라이브)' && submenu.childElementCount === 0) {
-                        await populateServiceMenu(submenu, folder);
-                    }
-                    // 자료실(옵시디안) 폴더는 클릭 시 로컬 서버에서 파일 목록 로드
-                    if (folder === '자료실(옵시디안)' && submenu.childElementCount === 0) {
-                        await populateObsidianMenu(submenu, folder);
+                    const isOpen = dropdown.classList.contains('show');
+                    closeAllDropdowns();
+                    if (!isOpen) {
+                        dropdown.classList.add('show');
+                        navLink.classList.add('open');
+                        activeDropdown = dropdown;
+
+                        if (folder === '자료실(구글드라이브)' && dropdown.childElementCount === 0) {
+                            await populateServiceMenu(dropdown, folder);
+                        }
+                        if (folder === '자료실(옵시디안)' && dropdown.childElementCount === 0) {
+                            await populateObsidianMenu(dropdown, folder);
+                        }
                     }
                 };
-                
-                const submenu = document.createElement('div');
-                submenu.className = 'submenu';
-                
+
                 if (items) {
                     for (const [itemName, filePath] of Object.entries(items)) {
-                        const submenuItem = document.createElement('div');
-                        submenuItem.className = 'submenu-item';
-                        submenuItem.textContent = itemName;
-                        submenuItem.onclick = (e) => loadFile(filePath, itemName, folder);
-                        submenu.appendChild(submenuItem);
+                        const dropItem = document.createElement('div');
+                        dropItem.className = 'dropdown-item';
+                        dropItem.textContent = itemName;
+                        dropItem.onclick = (e) => {
+                            e.stopPropagation();
+                            closeAllDropdowns();
+                            document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+                            dropItem.classList.add('active');
+                            loadFile(filePath, itemName, folder);
+                        };
+                        dropdown.appendChild(dropItem);
                     }
                 }
-                
-                folderDiv.appendChild(folderItem);
-                folderDiv.appendChild(submenu);
-                sidebar.appendChild(folderDiv);
+
+                navItem.appendChild(navLink);
+                navItem.appendChild(dropdown);
+                navbarMenu.appendChild(navItem);
+
+                // ===== 모바일 드로어 =====
+                const section = document.createElement('div');
+                section.className = 'drawer-section';
+
+                const title = document.createElement('div');
+                title.className = 'drawer-section-title';
+                title.textContent = folder;
+                section.appendChild(title);
+
+                if (items) {
+                    for (const [itemName, filePath] of Object.entries(items)) {
+                        const drawerItem = document.createElement('div');
+                        drawerItem.className = 'drawer-item';
+                        drawerItem.textContent = itemName;
+                        drawerItem.onclick = () => {
+                            closeDrawer();
+                            document.querySelectorAll('.drawer-item').forEach(i => i.classList.remove('active'));
+                            drawerItem.classList.add('active');
+                            loadFile(filePath, itemName, folder);
+                        };
+                        section.appendChild(drawerItem);
+                    }
+                } else {
+                    // 동적 로드 항목 (구글드라이브, 옵시디안)
+                    const drawerItem = document.createElement('div');
+                    drawerItem.className = 'drawer-item';
+                    drawerItem.textContent = '📂 열기...';
+                    drawerItem.onclick = async () => {
+                        closeDrawer();
+                        // 대응하는 데스크탑 dropdown을 trigger
+                        const navLinks = document.querySelectorAll('.nav-link');
+                        for (const link of navLinks) {
+                            if (link.textContent.includes(folder)) {
+                                link.click();
+                                break;
+                            }
+                        }
+                    };
+                    section.appendChild(drawerItem);
+                }
+
+                drawerContent.appendChild(section);
             }
         }
 
         // -------- 접속/다운로드 통계 --------
-        function recordVisit() {
+        async function recordVisit() {
             try {
+                let ip = '알 수 없음';
+                try {
+                    const res = await fetch('https://api.ipify.org?format=json');
+                    const data = await res.json();
+                    ip = data.ip;
+                } catch(e) {}
+
                 let visits = JSON.parse(localStorage.getItem('visitLog')) || [];
                 const now = new Date().toLocaleString('ko-KR');
-                visits.unshift(now);
-                if (visits.length > 50) visits = visits.slice(0, 50); // 최대 50개
+                visits.unshift({ time: now, ip: ip });
+                if (visits.length > 50) visits = visits.slice(0, 50);
                 localStorage.setItem('visitLog', JSON.stringify(visits));
+                renderDashboard();
             } catch(e) {}
         }
 
@@ -966,11 +1132,23 @@ async function populateObsidianMenu(submenuElement, folderName) {
             if (visits.length === 0) {
                 visitLog.innerHTML = '<div style="padding:14px; color:#aaa; text-align:center;">접속 기록이 없습니다.</div>';
             } else {
-                visitLog.innerHTML = visits.map((v, i) => `
-                    <div style="padding:8px 14px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-                        <span style="color:#666;">${i + 1}번째 접속</span>
-                        <span style="color:#999;">${v}</span>
-                    </div>`).join('');
+                visitLog.innerHTML = `
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr style="background:#f0f0f0; font-size:12px; color:#555;">
+                            <th style="padding:8px 14px; text-align:left;">순번</th>
+                            <th style="padding:8px 14px; text-align:left;">IP 주소</th>
+                            <th style="padding:8px 14px; text-align:right;">접속 시간</th>
+                        </tr>
+                        ${visits.map((v, i) => {
+                            const ip = (typeof v === 'object') ? v.ip : '(구기록)';
+                            const time = (typeof v === 'object') ? v.time : v;
+                            return `<tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:8px 14px; color:#888;">${i + 1}</td>
+                                <td style="padding:8px 14px; color:#3498db; font-weight:bold;">${ip}</td>
+                                <td style="padding:8px 14px; text-align:right; color:#999; font-size:12px;">${time}</td>
+                            </tr>`;
+                        }).join('')}
+                    </table>`;
             }
 
             // 다운로드 통계
@@ -994,6 +1172,42 @@ async function populateObsidianMenu(submenuElement, folderName) {
                         </tr>`).join('')}
                     </table>`;
             }
+        }
+
+        // ===== 모바일 드로어 =====
+        function toggleDrawer() {
+            document.getElementById('mobileDrawer').classList.toggle('open');
+            document.getElementById('mobileOverlay').classList.toggle('show');
+        }
+
+        function closeDrawer() {
+            document.getElementById('mobileDrawer').classList.remove('open');
+            document.getElementById('mobileOverlay').classList.remove('show');
+        }
+
+        // populateObsidianMenu / populateServiceMenu 가 dropdown에 아이템 추가 후
+        // 모바일 드로어도 동기화
+        function syncDrawerDynamic(folder, dropdown) {
+            const drawerContent = document.getElementById('mobile-drawer-content');
+            const sections = drawerContent.querySelectorAll('.drawer-section');
+            sections.forEach(sec => {
+                const t = sec.querySelector('.drawer-section-title');
+                if (t && t.textContent === folder) {
+                    // 기존 열기... 버튼 제거 후 실제 아이템 추가
+                    sec.innerHTML = '';
+                    const title = document.createElement('div');
+                    title.className = 'drawer-section-title';
+                    title.textContent = folder;
+                    sec.appendChild(title);
+                    dropdown.querySelectorAll('.dropdown-item').forEach(di => {
+                        const item = document.createElement('div');
+                        item.className = 'drawer-item';
+                        item.textContent = di.textContent;
+                        item.onclick = () => { closeDrawer(); di.click(); };
+                        sec.appendChild(item);
+                    });
+                }
+            });
         }
 
         // 초기화
