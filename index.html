@@ -577,7 +577,7 @@
         // -------- 옵시디안 메뉴 --------
         async function populateObsidianMenu(submenuElement) {
             if (obsidianMenuLoaded) return;
-            obsidianMenuLoaded = true;
+            // ✅ 수정: 성공 후에만 true 설정 (오류 시 재시도 가능하도록)
 
             const loadingItem = document.createElement('div');
             loadingItem.className = 'dropdown-item';
@@ -589,6 +589,7 @@
                 if (!response.ok) throw new Error('파일 목록을 불러올 수 없습니다');
                 const files = await response.json();
                 submenuElement.removeChild(loadingItem);
+                obsidianMenuLoaded = true; // ✅ 성공 후 설정
 
                 if (files.length === 0) {
                     const emptyItem = document.createElement('div');
@@ -606,17 +607,20 @@
                 });
 
                 Object.keys(grouped).sort().forEach(folder => {
+                    // ✅ 수정: 폴더 헤더를 dropdown-item 스타일로 표시 (클릭으로 접기/펼치기)
                     const folderDiv = document.createElement('div');
-                    folderDiv.className = 'dropdown-folder';
-                    folderDiv.style.cursor = 'pointer';
+                    folderDiv.className = 'dropdown-item';
+                    folderDiv.style.cssText = 'background:rgba(0,0,0,0.2); font-size:12px; color:rgba(255,255,255,0.5); cursor:pointer; padding:7px 16px; letter-spacing:0.5px;';
                     folderDiv.textContent = '📁 ' + folder;
 
+                    // ✅ 수정: 파일 목록을 처음부터 보이게 (display:block)
                     const fileList = document.createElement('div');
-                    fileList.style.display = 'none';
+                    fileList.style.display = 'block';
 
                     folderDiv.addEventListener('click', (e) => {
                         e.stopPropagation();
                         fileList.style.display = fileList.style.display === 'none' ? 'block' : 'none';
+                        folderDiv.textContent = (fileList.style.display === 'none' ? '📁 ' : '📂 ') + folder;
                     });
 
                     submenuElement.appendChild(folderDiv);
@@ -658,7 +662,9 @@
                 });
 
             } catch (err) {
-                submenuElement.innerHTML = '';
+                // ✅ loadingItem이 아직 있으면 제거
+                if (submenuElement.contains(loadingItem)) submenuElement.removeChild(loadingItem);
+                obsidianMenuLoaded = false; // ✅ 실패 시 재시도 허용
                 const errorItem = document.createElement('div');
                 errorItem.className = 'dropdown-item';
                 errorItem.style.color = '#e74c3c';
