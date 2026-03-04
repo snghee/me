@@ -627,10 +627,10 @@
                         menuItem.addEventListener('click', async (e) => {
                             e.stopPropagation();
                             try {
-                                const fileRes = await fetch(`http://localhost:3000/api/obsidian-file/${encodeURIComponent(file.path)}`);
+                                const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
                                 if (!fileRes.ok) throw new Error('파일을 불러올 수 없습니다');
-                                const data = await fileRes.text();
-                                const htmlContent = markdownToHtml(data);
+                                const data = await fileRes.json();
+                                const htmlContent = markdownToHtml(data.content);
                                 content.className = 'content markdown-body';
                                 content.innerHTML = `
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
@@ -668,7 +668,7 @@
         // -------- 옵시디안 파일 다운로드 --------
         async function downloadObsidianFile(filePath, fileName) {
             try {
-                const response = await fetch(`http://localhost:3000/api/download/${encodeURIComponent(filePath)}`);
+                const response = await fetch(`http://localhost:3000/api/download?path=${encodeURIComponent(filePath)}`);
                 if (!response.ok) throw new Error('다운로드 실패');
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
