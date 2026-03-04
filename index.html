@@ -958,20 +958,181 @@
                         section.appendChild(drawerItem);
                     }
                 } else {
-                    const drawerItem = document.createElement('div');
-                    drawerItem.className = 'drawer-item';
-                    drawerItem.textContent = '📂 열기...';
-                    drawerItem.addEventListener('click', async () => {
-                        closeDrawer();
-                        // 모바일에서 동적 메뉴 로드 후 콘텐츠 표시
-                        if (folder === '자료실(구글드라이브)') {
-                            await populateServiceMenu(dropdown);
-                        }
-                        if (folder === '자료실(옵시디안)') {
-                            await populateObsidianMenu(dropdown);
+                    // 자료실(구글드라이브) / 자료실(옵시디안) — 모바일 인라인 렌더링
+                    const loadBtn = document.createElement('div');
+                    loadBtn.className = 'drawer-item';
+                    loadBtn.style.color = 'rgba(255,255,255,0.5)';
+                    loadBtn.textContent = '⏳ 탭하여 불러오기';
+                    let loaded = false;
+
+                    // 파일 목록이 들어갈 컨테이너
+                    const drawerFileContainer = document.createElement('div');
+
+                    loadBtn.addEventListener('click', async () => {
+                        if (loaded) return;
+                        loaded = true;
+                        loadBtn.textContent = '⏳ 불러오는 중...';
+
+                        try {
+                            // 데이터 로드
+                            let grouped = {};
+                            if (folder === '자료실(구글드라이브)') {
+                                await initGapiClient();
+                                const tree = await fetchDriveTree(SERVICE_FOLDER_ID, '루트');
+                                if (tree.files.length > 0) grouped['루트'] = tree.files;
+                                for (const sub of tree.subFolders) {
+                                    const subTree = await fetchDriveTree(sub.id, sub.name);
+                                    if (subTree.files.length > 0) grouped[sub.name] = subTree.files;
+                                }
+                            } else if (folder === '자료실(옵시디안)') {
+                                const res = await fetch('http://localhost:3000/api/obsidian-files');
+                                const files = await res.json();
+                                files.forEach(f => {
+                                    const k = f.folder || '루트';
+                                    if (!grouped[k]) grouped[k] = [];
+                                    grouped[k].push(f);
+                                });
+                            }
+
+                            loadBtn.style.display = 'none';
+
+                            // 전체 펼침/축소 버튼
+                            const ctrlRow = document.createElement('div');
+                            ctrlRow.style.cssText = 'display:flex; gap:6px; padding:6px 12px;';
+                            const mkBtn = (label) => {
+                                const b = document.createElement('button');
+                                b.textContent = label;
+                                b.style.cssText = 'flex:1; padding:5px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
+                                return b;
+                            };
+                            const btnExp = mkBtn('▼ 전체 펼침');
+                            const btnCol = mkBtn('▲ 전체 축소');
+                            ctrlRow.appendChild(btnExp);
+                            ctrlRow.appendChild(btnCol);
+                            drawerFileContainer.appendChild(ctrlRow);
+
+                            const allBlocks = [];
+
+                            Object.keys(grouped).sort().forEach(folderKey => {
+                                // 폴더 헤더
+                                const fHeader = document.createElement('div');
+                                fHeader.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 16px; font-size:12px; color:rgba(255,255,255,0.6); background:rgba(0,0,0,0.2); cursor:pointer; user-select:none;';
+                                const fLabel = document.createElement('span');
+                                fLabel.textContent = '📂 ' + folderKey;
+                                const fArrow = document.createElement('span');
+                                fArrow.textContent = '▾';
+                                fArrow.style.cssText = 'font-size:11px; transition:transform 0.2s; display:inline-block;';
+                                fHeader.appendChild(fLabel);
+                                fHeader.appendChild(fArrow);
+
+                                // 파일 목록
+                                const fList = document.createElement('div');
+                                fList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
+                                const openH = grouped[folderKey].length * 44 + 'px';
+                                fList.style.maxHeight = openH;
+                                fList._openHeight = openH;
+                                fList._isOpen = true;
+                                allBlocks.push({ fList, fArrow, openH });
+
+                                fHeader.addEventListener('click', () => {
+                                    if (fList._isOpen) {
+                                        fList.style.maxHeight = '0';
+                                        fArrow.style.transform = 'rotate(-90deg)';
+                                        fList._isOpen = false;
+                                    } else {
+                                        fList.style.maxHeight = fList._openHeight;
+                                        fArrow.style.transform = 'rotate(0deg)';
+                                        fList._isOpen = true;
+                                    }
+                                });
+
+                                grouped[folderKey].forEach(file => {
+                                    const item = document.createElement('div');
+                                    item.className = 'drawer-item';
+                                    item.style.paddingLeft = '28px';
+                                    item.style.fontSize = '13px';
+                                    item.textContent = '📄 ' + file.name;
+                                    item.addEventListener('click', async () => {
+                                        closeDrawer();
+                                        if (folder === '자료실(구글드라이브)') {
+                                            content.innerHTML = `<div class="loading"><div class="loading-spinner"></div><p>불러오는 중...</p></div>`;
+                                            try {
+                                                const res = await gapi.client.drive.files.get({ fileId: file.id, alt: 'media' });
+                                                let text = res.body;
+                                                if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
+                                                const isMd = file.name.endsWith('.md');
+                                                const htmlContent = isMd ? markdownToHtml(text) : `<pre style="white-space:pre-wrap;word-break:break-word;">${text}</pre>`;
+                                                const downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
+                                                recordDownload(file.name, file.id);
+                                                content.className = 'content markdown-body';
+                                                content.innerHTML = `
+                                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                                                        <div>
+                                                            <div class="breadcrumb">자료실(구글드라이브) > ${folderKey} > ${file.name}</div>
+                                                            <h2>${file.name}</h2>
+                                                        </div>
+                                                        <a href="${downloadUrl}" target="_blank"
+                                                            onclick="recordDownload('${file.name}','${file.id}')"
+                                                            style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;text-decoration:none;white-space:nowrap;">
+                                                            ⬇️ 다운로드
+                                                        </a>
+                                                    </div>${htmlContent}`;
+                                            } catch(err) {
+                                                content.innerHTML = `<div class="error">❌ ${err.message}</div>`;
+                                            }
+                                        } else if (folder === '자료실(옵시디안)') {
+                                            content.innerHTML = `<div class="loading"><div class="loading-spinner"></div><p>불러오는 중...</p></div>`;
+                                            try {
+                                                const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
+                                                const data = await fileRes.json();
+                                                content.className = 'content markdown-body';
+                                                content.innerHTML = `
+                                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                                                        <div>
+                                                            <div class="breadcrumb">자료실(옵시디안) > ${folderKey} > ${file.name}</div>
+                                                            <h2>${file.name}</h2>
+                                                        </div>
+                                                        <button onclick="downloadObsidianFile('${file.path}','${file.name}')"
+                                                            style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;">
+                                                            ⬇️ 다운로드
+                                                        </button>
+                                                    </div>${markdownToHtml(data.content)}`;
+                                            } catch(err) {
+                                                content.innerHTML = `<div class="error">❌ ${err.message}</div>`;
+                                            }
+                                        }
+                                    });
+                                    fList.appendChild(item);
+                                });
+
+                                drawerFileContainer.appendChild(fHeader);
+                                drawerFileContainer.appendChild(fList);
+                            });
+
+                            // 전체 펼침/축소 동작
+                            btnExp.addEventListener('click', () => {
+                                allBlocks.forEach(({ fList, fArrow, openH }) => {
+                                    fList.style.maxHeight = openH;
+                                    fArrow.style.transform = 'rotate(0deg)';
+                                    fList._isOpen = true;
+                                });
+                            });
+                            btnCol.addEventListener('click', () => {
+                                allBlocks.forEach(({ fList, fArrow }) => {
+                                    fList.style.maxHeight = '0';
+                                    fArrow.style.transform = 'rotate(-90deg)';
+                                    fList._isOpen = false;
+                                });
+                            });
+
+                        } catch(err) {
+                            loadBtn.textContent = '❌ 불러오기 실패 - 다시 탭하세요';
+                            loaded = false;
                         }
                     });
-                    section.appendChild(drawerItem);
+
+                    section.appendChild(loadBtn);
+                    section.appendChild(drawerFileContainer);
                 }
 
                 drawerContent.appendChild(section);
