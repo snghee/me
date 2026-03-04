@@ -13,7 +13,6 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
-         
         }
 
         /* ===== 상단 네비게이션 ===== */
@@ -79,7 +78,8 @@
             transition: transform 0.2s;
         }
 
-        .nav-link.open .arrow {
+        /* ✅ 핵심 수정: 호버 시 arrow 회전 */
+        .nav-item:hover .nav-link .arrow {
             transform: rotate(180deg);
         }
 
@@ -101,7 +101,20 @@
             scrollbar-color: #4a6280 #2c3e50;
         }
 
-        .dropdown.show { display: block; }
+        /* ✅ 핵심 수정 1: 호버만으로 드롭다운 표시 */
+        .nav-item:hover .dropdown {
+            display: block;
+        }
+
+        /* ✅ 핵심 수정 2: 드롭다운 위쪽에 투명 브릿지 영역 추가 (갭 이동 중 닫힘 방지) */
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            height: 8px; /* navbar와 dropdown 사이 갭 커버 */
+        }
 
         .dropdown::-webkit-scrollbar { width: 4px; }
         .dropdown::-webkit-scrollbar-thumb { background: #4a6280; border-radius: 2px; }
@@ -316,7 +329,7 @@
         @media (min-width: 769px) and (max-width: 1024px) {
             .content { padding: 24px 28px; }
         }
-</style>
+    </style>
 </head>
 <body>
     <!-- 상단 네비게이션 -->
@@ -471,6 +484,7 @@
         }
 
         // -------- 서비스(구글드라이브) 메뉴 --------
+        // ✅ 수정: 호버 진입 시 자동 로드되도록 navItem에 mouseenter 이벤트 활용
         async function populateServiceMenu(submenuElement) {
             if (driveMenuLoaded) return;
             driveMenuLoaded = true;
@@ -507,7 +521,6 @@
                     menuItem.textContent = '📄 ' + file.name;
                     menuItem.addEventListener('click', async (e) => {
                         e.stopPropagation();
-                        closeAllDropdowns();
                         document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
                         menuItem.classList.add('active');
 
@@ -615,7 +628,6 @@
 
                         menuItem.addEventListener('click', async (e) => {
                             e.stopPropagation();
-                            closeAllDropdowns();
                             try {
                                 const fileRes = await fetch(`http://localhost:3000/api/obsidian-file/${encodeURIComponent(file.path)}`);
                                 if (!fileRes.ok) throw new Error('파일을 불러올 수 없습니다');
@@ -749,24 +761,6 @@
             }
         }
 
-        // ========================================
-        // ✅ 핵심 수정: 드롭다운 열기/닫기 로직
-        // ========================================
-        let activeDropdown = null;
-
-        function closeAllDropdowns() {
-            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('show'));
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('open'));
-            activeDropdown = null;
-        }
-
-        // 외부 클릭 시 닫기 - mousedown 사용으로 타이밍 문제 해결
-        document.addEventListener('mousedown', (e) => {
-            if (!e.target.closest('.nav-item')) {
-                closeAllDropdowns();
-            }
-        });
-
         function renderMenu() {
             const navbarMenu = document.getElementById('navbar-menu');
             const drawerContent = document.getElementById('mobile-drawer-content');
@@ -783,24 +777,13 @@
                 const dropdown = document.createElement('div');
                 dropdown.className = 'dropdown';
 
-                // ✅ 수정: mousedown으로 변경하여 외부클릭 닫기와 충돌 방지
-                navLink.addEventListener('mousedown', async (e) => {
-                    e.stopPropagation(); // 외부 클릭 이벤트 차단
-                    const isOpen = dropdown.classList.contains('show');
-                    closeAllDropdowns();
-
-                    if (!isOpen) {
-                        dropdown.classList.add('show');
-                        navLink.classList.add('open');
-                        activeDropdown = dropdown;
-
-                        // 동적 메뉴 로드
-                        if (folder === '자료실(구글드라이브)' && dropdown.childElementCount === 0) {
-                            await populateServiceMenu(dropdown);
-                        }
-                        if (folder === '자료실(옵시디안)' && dropdown.childElementCount === 0) {
-                            await populateObsidianMenu(dropdown);
-                        }
+                // ✅ 핵심 수정: 호버 진입 시 동적 메뉴 로드
+                navItem.addEventListener('mouseenter', async () => {
+                    if (folder === '자료실(구글드라이브)' && dropdown.childElementCount === 0) {
+                        await populateServiceMenu(dropdown);
+                    }
+                    if (folder === '자료실(옵시디안)' && dropdown.childElementCount === 0) {
+                        await populateObsidianMenu(dropdown);
                     }
                 });
 
@@ -810,12 +793,8 @@
                         const dropItem = document.createElement('div');
                         dropItem.className = 'dropdown-item';
                         dropItem.textContent = itemName;
-                        dropItem.addEventListener('mousedown', (e) => {
-                            e.stopPropagation();
-                        });
                         dropItem.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            closeAllDropdowns();
                             document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
                             dropItem.classList.add('active');
                             loadFile(filePath, itemName, folder);
@@ -854,14 +833,14 @@
                     const drawerItem = document.createElement('div');
                     drawerItem.className = 'drawer-item';
                     drawerItem.textContent = '📂 열기...';
-                    drawerItem.addEventListener('click', () => {
+                    drawerItem.addEventListener('click', async () => {
                         closeDrawer();
-                        const navLinks = document.querySelectorAll('.nav-link');
-                        for (const link of navLinks) {
-                            if (link.textContent.includes(folder)) {
-                                link.dispatchEvent(new MouseEvent('mousedown', { bubbles: false }));
-                                break;
-                            }
+                        // 모바일에서 동적 메뉴 로드 후 콘텐츠 표시
+                        if (folder === '자료실(구글드라이브)') {
+                            await populateServiceMenu(dropdown);
+                        }
+                        if (folder === '자료실(옵시디안)') {
+                            await populateObsidianMenu(dropdown);
                         }
                     });
                     section.appendChild(drawerItem);
