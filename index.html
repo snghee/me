@@ -588,6 +588,8 @@
                 const response = await fetch('http://localhost:3000/api/obsidian-files');
                 if (!response.ok) throw new Error('파일 목록을 불러올 수 없습니다');
                 const files = await response.json();
+                console.log('[Obsidian] 서버 응답 파일 수:', files.length);
+                console.log('[Obsidian] 첫 번째 파일 구조:', files[0]);
                 submenuElement.removeChild(loadingItem);
                 obsidianMenuLoaded = true; // ✅ 성공 후 설정
 
@@ -599,38 +601,28 @@
                     return;
                 }
 
+                // ✅ 폴더 그룹화
                 const grouped = {};
                 files.forEach(file => {
-                    const folder = file.folder || '루트';
-                    if (!grouped[folder]) grouped[folder] = [];
-                    grouped[folder].push(file);
+                    const folderKey = file.folder || '루트';
+                    if (!grouped[folderKey]) grouped[folderKey] = [];
+                    grouped[folderKey].push(file);
                 });
 
-                Object.keys(grouped).sort().forEach(folder => {
-                    // ✅ 수정: 폴더 헤더를 dropdown-item 스타일로 표시 (클릭으로 접기/펼치기)
-                    const folderDiv = document.createElement('div');
-                    folderDiv.className = 'dropdown-item';
-                    folderDiv.style.cssText = 'background:rgba(0,0,0,0.2); font-size:12px; color:rgba(255,255,255,0.5); cursor:pointer; padding:7px 16px; letter-spacing:0.5px;';
-                    folderDiv.textContent = '📁 ' + folder;
+                // ✅ 폴더헤더 + 파일을 모두 submenuElement 에 직접 append (중첩 div 제거)
+                Object.keys(grouped).sort().forEach(folderKey => {
+                    // 폴더 헤더
+                    const folderHeader = document.createElement('div');
+                    folderHeader.style.cssText = 'padding:6px 14px 4px; font-size:11px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.5px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.05);';
+                    folderHeader.textContent = '📁 ' + folderKey;
+                    submenuElement.appendChild(folderHeader);
 
-                    // ✅ 수정: 파일 목록을 처음부터 보이게 (display:block)
-                    const fileList = document.createElement('div');
-                    fileList.style.display = 'block';
-
-                    folderDiv.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        fileList.style.display = fileList.style.display === 'none' ? 'block' : 'none';
-                        folderDiv.textContent = (fileList.style.display === 'none' ? '📁 ' : '📂 ') + folder;
-                    });
-
-                    submenuElement.appendChild(folderDiv);
-                    submenuElement.appendChild(fileList);
-
-                    grouped[folder].forEach(file => {
+                    // 파일 아이템들을 바로 submenuElement에 append
+                    grouped[folderKey].forEach(file => {
                         const menuItem = document.createElement('div');
                         menuItem.className = 'dropdown-item';
+                        menuItem.style.paddingLeft = '24px';
                         menuItem.textContent = '📄 ' + file.name;
-                        menuItem.style.paddingLeft = '28px';
 
                         menuItem.addEventListener('click', async (e) => {
                             e.stopPropagation();
@@ -643,7 +635,7 @@
                                 content.innerHTML = `
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                                         <div>
-                                            <div class="breadcrumb">자료실(옵시디안) > ${folder} > ${file.name}</div>
+                                            <div class="breadcrumb">자료실(옵시디안) > ${folderKey} > ${file.name}</div>
                                             <h2>${file.name}</h2>
                                         </div>
                                         <button onclick="downloadObsidianFile('${file.path}', '${file.name}')"
@@ -657,7 +649,7 @@
                                 content.innerHTML = `<p style="color:red;">파일을 불러올 수 없습니다: ${err.message}</p>`;
                             }
                         });
-                        fileList.appendChild(menuItem);
+                        submenuElement.appendChild(menuItem);
                     });
                 });
 
