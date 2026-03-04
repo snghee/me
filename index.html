@@ -605,7 +605,7 @@
                     return;
                 }
 
-                // ✅ 폴더 그룹화
+                // 폴더 그룹화
                 const grouped = {};
                 files.forEach(file => {
                     const folderKey = file.folder || '루트';
@@ -613,19 +613,83 @@
                     grouped[folderKey].push(file);
                 });
 
-                // ✅ 폴더헤더 + 파일을 모두 submenuElement 에 직접 append (중첩 div 제거)
-                Object.keys(grouped).sort().forEach(folderKey => {
-                    // 폴더 헤더
-                    const folderHeader = document.createElement('div');
-                    folderHeader.style.cssText = 'padding:6px 14px 4px; font-size:11px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.5px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.05);';
-                    folderHeader.textContent = '📁 ' + folderKey;
-                    submenuElement.appendChild(folderHeader);
+                // ── 전체 펼침 / 전체 축소 버튼 ──
+                const ctrlBar = document.createElement('div');
+                ctrlBar.style.cssText = 'display:flex; gap:6px; padding:6px 10px; background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.07);';
 
-                    // 파일 아이템들을 바로 submenuElement에 append
+                const btnExpandAll = document.createElement('button');
+                btnExpandAll.textContent = '▼ 전체 펼침';
+                btnExpandAll.style.cssText = 'flex:1; padding:4px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
+
+                const btnCollapseAll = document.createElement('button');
+                btnCollapseAll.textContent = '▲ 전체 축소';
+                btnCollapseAll.style.cssText = 'flex:1; padding:4px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
+
+                ctrlBar.appendChild(btnExpandAll);
+                ctrlBar.appendChild(btnCollapseAll);
+                submenuElement.appendChild(ctrlBar);
+
+                const allFileLists = []; // 접기/펼치기 제어용
+
+                Object.keys(grouped).sort().forEach(folderKey => {
+                    // ── 폴더 헤더 ──
+                    const folderHeader = document.createElement('div');
+                    folderHeader.style.cssText = `
+                        padding: 8px 14px;
+                        font-size: 12px;
+                        color: rgba(255,255,255,0.7);
+                        background: rgba(0,0,0,0.25);
+                        border-bottom: 1px solid rgba(255,255,255,0.07);
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        user-select: none;
+                    `;
+
+                    const folderLabel = document.createElement('span');
+                    folderLabel.textContent = '📂 ' + folderKey;
+
+                    const folderArrow = document.createElement('span');
+                    folderArrow.textContent = '▾';
+                    folderArrow.style.cssText = 'font-size:11px; transition:transform 0.2s; display:inline-block;';
+
+                    folderHeader.appendChild(folderLabel);
+                    folderHeader.appendChild(folderArrow);
+
+                    // ── 파일 목록 래퍼 (max-height 트랜지션으로 접기/펼치기) ──
+                    const fileList = document.createElement('div');
+                    fileList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
+                    // 펼친 상태로 시작 — 파일 수 × 약 38px
+                    const openHeight = grouped[folderKey].length * 38 + 'px';
+                    fileList.style.maxHeight = openHeight;
+                    fileList._openHeight = openHeight;
+                    fileList._isOpen = true;
+
+                    allFileLists.push({ fileList, folderArrow, openHeight });
+
+                    // 폴더 헤더 클릭 → 토글
+                    folderHeader.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (fileList._isOpen) {
+                            fileList.style.maxHeight = '0';
+                            folderArrow.style.transform = 'rotate(-90deg)';
+                            fileList._isOpen = false;
+                        } else {
+                            fileList.style.maxHeight = fileList._openHeight;
+                            folderArrow.style.transform = 'rotate(0deg)';
+                            fileList._isOpen = true;
+                        }
+                    });
+
+                    submenuElement.appendChild(folderHeader);
+                    submenuElement.appendChild(fileList);
+
+                    // ── 파일 아이템 ──
                     grouped[folderKey].forEach(file => {
                         const menuItem = document.createElement('div');
                         menuItem.className = 'dropdown-item';
-                        menuItem.style.paddingLeft = '24px';
+                        menuItem.style.paddingLeft = '26px';
                         menuItem.textContent = '📄 ' + file.name;
 
                         menuItem.addEventListener('click', async (e) => {
@@ -653,7 +717,25 @@
                                 content.innerHTML = `<p style="color:red;">파일을 불러올 수 없습니다: ${err.message}</p>`;
                             }
                         });
-                        submenuElement.appendChild(menuItem);
+                        fileList.appendChild(menuItem);
+                    });
+                });
+
+                // 전체 펼침 / 전체 축소 버튼 동작
+                btnExpandAll.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    allFileLists.forEach(({ fileList, folderArrow, openHeight }) => {
+                        fileList.style.maxHeight = openHeight;
+                        folderArrow.style.transform = 'rotate(0deg)';
+                        fileList._isOpen = true;
+                    });
+                });
+                btnCollapseAll.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    allFileLists.forEach(({ fileList, folderArrow }) => {
+                        fileList.style.maxHeight = '0';
+                        folderArrow.style.transform = 'rotate(-90deg)';
+                        fileList._isOpen = false;
                     });
                 });
 
