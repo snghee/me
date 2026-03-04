@@ -520,26 +520,32 @@
             folderHeader.appendChild(folderArrow);
 
             const fileList = document.createElement('div');
-            fileList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
-            const openHeight = fileItems.length * 38 + 'px';
-            fileList.style.maxHeight = openHeight;
-            fileList._openHeight = openHeight;
+            // ✅ max-height 고정값 대신 none으로 시작 → 펼쳐진 상태
+            fileList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease; max-height:none;';
             fileList._isOpen = true;
 
             folderHeader.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (fileList._isOpen) {
-                    fileList.style.maxHeight = '0';
+                    // ✅ 닫을 때: 현재 실제 높이를 측정한 후 0으로
+                    fileList.style.maxHeight = fileList.scrollHeight + 'px';
+                    requestAnimationFrame(() => {
+                        fileList.style.maxHeight = '0';
+                    });
                     folderArrow.style.transform = 'rotate(-90deg)';
                     fileList._isOpen = false;
                 } else {
-                    fileList.style.maxHeight = fileList._openHeight;
+                    // ✅ 열 때: scrollHeight로 설정 후 none으로 해제
+                    fileList.style.maxHeight = fileList.scrollHeight + 'px';
                     folderArrow.style.transform = 'rotate(0deg)';
                     fileList._isOpen = true;
+                    fileList.addEventListener('transitionend', () => {
+                        if (fileList._isOpen) fileList.style.maxHeight = 'none';
+                    }, { once: true });
                 }
             });
 
-            allFileLists.push({ fileList, folderArrow, openHeight });
+            allFileLists.push({ fileList, folderArrow });
 
             fileItems.forEach(file => {
                 const menuItem = document.createElement('div');
@@ -772,8 +778,11 @@
             btnExpand.style.cssText = btnStyle;
             btnExpand.addEventListener('click', (e) => {
                 e.stopPropagation();
-                allFileLists.forEach(({ fileList, folderArrow, openHeight }) => {
-                    fileList.style.maxHeight = openHeight;
+                allFileLists.forEach(({ fileList, folderArrow }) => {
+                    fileList.style.maxHeight = fileList.scrollHeight + 'px';
+                    fileList.addEventListener('transitionend', () => {
+                        if (fileList._isOpen) fileList.style.maxHeight = 'none';
+                    }, { once: true });
                     folderArrow.style.transform = 'rotate(0deg)';
                     fileList._isOpen = true;
                 });
@@ -785,7 +794,10 @@
             btnCollapse.addEventListener('click', (e) => {
                 e.stopPropagation();
                 allFileLists.forEach(({ fileList, folderArrow }) => {
-                    fileList.style.maxHeight = '0';
+                    fileList.style.maxHeight = fileList.scrollHeight + 'px';
+                    requestAnimationFrame(() => {
+                        fileList.style.maxHeight = '0';
+                    });
                     folderArrow.style.transform = 'rotate(-90deg)';
                     fileList._isOpen = false;
                 });
@@ -1030,22 +1042,23 @@
 
                                 // 파일 목록
                                 const fList = document.createElement('div');
-                                fList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
-                                const openH = grouped[folderKey].length * 44 + 'px';
-                                fList.style.maxHeight = openH;
-                                fList._openHeight = openH;
+                                fList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease; max-height:none;';
                                 fList._isOpen = true;
-                                allBlocks.push({ fList, fArrow, openH });
+                                allBlocks.push({ fList, fArrow });
 
                                 fHeader.addEventListener('click', () => {
                                     if (fList._isOpen) {
-                                        fList.style.maxHeight = '0';
+                                        fList.style.maxHeight = fList.scrollHeight + 'px';
+                                        requestAnimationFrame(() => { fList.style.maxHeight = '0'; });
                                         fArrow.style.transform = 'rotate(-90deg)';
                                         fList._isOpen = false;
                                     } else {
-                                        fList.style.maxHeight = fList._openHeight;
+                                        fList.style.maxHeight = fList.scrollHeight + 'px';
                                         fArrow.style.transform = 'rotate(0deg)';
                                         fList._isOpen = true;
+                                        fList.addEventListener('transitionend', () => {
+                                            if (fList._isOpen) fList.style.maxHeight = 'none';
+                                        }, { once: true });
                                     }
                                 });
 
@@ -1114,15 +1127,19 @@
 
                             // 전체 펼침/축소 동작
                             btnExp.addEventListener('click', () => {
-                                allBlocks.forEach(({ fList, fArrow, openH }) => {
-                                    fList.style.maxHeight = openH;
+                                allBlocks.forEach(({ fList, fArrow }) => {
+                                    fList.style.maxHeight = fList.scrollHeight + 'px';
                                     fArrow.style.transform = 'rotate(0deg)';
                                     fList._isOpen = true;
+                                    fList.addEventListener('transitionend', () => {
+                                        if (fList._isOpen) fList.style.maxHeight = 'none';
+                                    }, { once: true });
                                 });
                             });
                             btnCol.addEventListener('click', () => {
                                 allBlocks.forEach(({ fList, fArrow }) => {
-                                    fList.style.maxHeight = '0';
+                                    fList.style.maxHeight = fList.scrollHeight + 'px';
+                                    requestAnimationFrame(() => { fList.style.maxHeight = '0'; });
                                     fArrow.style.transform = 'rotate(-90deg)';
                                     fList._isOpen = false;
                                 });
