@@ -414,6 +414,9 @@
         const CLIENT_ID = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
         const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
 
+        // ✅ 현재 페이지를 서빙하는 서버 주소를 자동으로 사용 (localhost or PC IP)
+        const SERVER_BASE = `${location.protocol}//${location.hostname}:3000`;
+
         const menuData = {
             "소개": {
                 "회사 개요": "company-overview.md",
@@ -667,7 +670,7 @@
             submenuElement.appendChild(loadingItem);
 
             try {
-                const response = await fetch('http://localhost:3000/api/obsidian-files');
+                const response = await fetch(SERVER_BASE + '/api/obsidian-files');
                 if (!response.ok) throw new Error('파일 목록을 불러올 수 없습니다');
                 const files = await response.json();
                 if (files.error) throw new Error(files.error);
@@ -700,7 +703,7 @@
                 Object.keys(grouped).sort().forEach(folderKey => {
                     const onFileClick = async (file) => {
                         try {
-                            const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
+                            const fileRes = await fetch(`${SERVER_BASE}/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
                             if (!fileRes.ok) throw new Error('파일을 불러올 수 없습니다');
                             const data = await fileRes.json();
                             content.className = 'content markdown-body';
@@ -731,7 +734,7 @@
                 obsidianMenuLoaded = false;
 
                 try {
-                    const vaultRes = await fetch('http://localhost:3000/api/vaults');
+                    const vaultRes = await fetch(SERVER_BASE + '/api/vaults');
                     const vaults = await vaultRes.json();
                     if (vaults.length > 0) {
                         const infoItem = document.createElement('div');
@@ -796,7 +799,7 @@
         // -------- 옵시디안 파일 다운로드 --------
         async function downloadObsidianFile(filePath, fileName) {
             try {
-                const response = await fetch(`http://localhost:3000/api/download?path=${encodeURIComponent(filePath)}`);
+                const response = await fetch(`${SERVER_BASE}/api/download?path=${encodeURIComponent(filePath)}`);
                 if (!response.ok) throw new Error('다운로드 실패');
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -985,7 +988,7 @@
                                     if (subTree.files.length > 0) grouped[sub.name] = subTree.files;
                                 }
                             } else if (folder === '자료실(옵시디안)') {
-                                const res = await fetch('http://localhost:3000/api/obsidian-files');
+                                const res = await fetch(SERVER_BASE + '/api/obsidian-files');
                                 const files = await res.json();
                                 files.forEach(f => {
                                     const k = f.folder || '루트';
@@ -1083,7 +1086,7 @@
                                         } else if (folder === '자료실(옵시디안)') {
                                             content.innerHTML = `<div class="loading"><div class="loading-spinner"></div><p>불러오는 중...</p></div>`;
                                             try {
-                                                const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
+                                                const fileRes = await fetch(`${SERVER_BASE}/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
                                                 const data = await fileRes.json();
                                                 content.className = 'content markdown-body';
                                                 content.innerHTML = `
