@@ -485,8 +485,77 @@
             } catch (err) { console.error('다운로드 통계 기록 오류:', err); }
         }
 
+        // -------- 구글드라이브: 폴더+파일 재귀 탐색 --------
+        async function fetchDriveTree(folderId, folderName) {
+            const res = await gapi.client.drive.files.list({
+                q: `'${folderId}' in parents and trashed=false`,
+                pageSize: 200,
+                fields: 'files(id,name,mimeType)',
+                orderBy: 'name'
+            });
+            const items = res.result.files || [];
+            const folders = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+            const files   = items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+            return { folderName, folderId, files, subFolders: folders };
+        }
+
+        // -------- 접기/펼치기 폴더 블록 생성 공통 함수 --------
+        function buildFolderBlock(folderName, fileItems, allFileLists, onFileClick) {
+            const folderHeader = document.createElement('div');
+            folderHeader.style.cssText = `
+                padding:8px 14px; font-size:12px; color:rgba(255,255,255,0.7);
+                background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.07);
+                cursor:pointer; display:flex; align-items:center;
+                justify-content:space-between; user-select:none;
+            `;
+            const folderLabel = document.createElement('span');
+            folderLabel.textContent = '📂 ' + folderName;
+            const folderArrow = document.createElement('span');
+            folderArrow.textContent = '▾';
+            folderArrow.style.cssText = 'font-size:11px; transition:transform 0.2s; display:inline-block;';
+            folderHeader.appendChild(folderLabel);
+            folderHeader.appendChild(folderArrow);
+
+            const fileList = document.createElement('div');
+            fileList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
+            const openHeight = fileItems.length * 38 + 'px';
+            fileList.style.maxHeight = openHeight;
+            fileList._openHeight = openHeight;
+            fileList._isOpen = true;
+
+            folderHeader.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (fileList._isOpen) {
+                    fileList.style.maxHeight = '0';
+                    folderArrow.style.transform = 'rotate(-90deg)';
+                    fileList._isOpen = false;
+                } else {
+                    fileList.style.maxHeight = fileList._openHeight;
+                    folderArrow.style.transform = 'rotate(0deg)';
+                    fileList._isOpen = true;
+                }
+            });
+
+            allFileLists.push({ fileList, folderArrow, openHeight });
+
+            fileItems.forEach(file => {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'dropdown-item';
+                menuItem.style.paddingLeft = '26px';
+                menuItem.textContent = '📄 ' + file.name;
+                menuItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+                    menuItem.classList.add('active');
+                    onFileClick(file, folderName);
+                });
+                fileList.appendChild(menuItem);
+            });
+
+            return { folderHeader, fileList };
+        }
+
         // -------- 서비스(구글드라이브) 메뉴 --------
-        // ✅ 수정: 호버 진입 시 자동 로드되도록 navItem에 mouseenter 이벤트 활용
         async function populateServiceMenu(submenuElement) {
             if (driveMenuLoaded) return;
             driveMenuLoaded = true;
@@ -506,10 +575,12 @@
             submenuElement.appendChild(loadingItem);
 
             try {
-                const files = await fetchDriveFilesFromFolder(SERVICE_FOLDER_ID);
+                await initGapiClient();
+                const tree = await fetchDriveTree(SERVICE_FOLDER_ID, '루트');
                 submenuElement.removeChild(loadingItem);
 
-                if (files.length === 0) {
+                const totalFiles = tree.files.length + tree.subFolders.length;
+                if (totalFiles === 0 && tree.files.length === 0) {
                     const emptyItem = document.createElement('div');
                     emptyItem.className = 'dropdown-item';
                     emptyItem.textContent = '(Google Drive에 파일이 없습니다)';
@@ -517,59 +588,71 @@
                     return;
                 }
 
-                files.forEach(file => {
-                    const menuItem = document.createElement('div');
-                    menuItem.className = 'dropdown-item';
-                    menuItem.textContent = '📄 ' + file.name;
-                    menuItem.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
-                        menuItem.classList.add('active');
+                const allFileLists = [];
 
+                // ── 전체 펼침 / 전체 축소 버튼 ──
+                submenuElement.appendChild(buildCtrlBar(allFileLists));
+
+                // 파일 클릭 핸들러
+                const onFileClick = async (file, folderName) => {
+                    content.innerHTML = `
+                        <div class="breadcrumb">자료실(구글드라이브) > ${folderName} > ${file.name}</div>
+                        <div class="loading"><div class="loading-spinner"></div><p>파일 내용을 불러오는 중...</p></div>
+                    `;
+                    try {
+                        const res = await gapi.client.drive.files.get({ fileId: file.id, alt: 'media' });
+                        let text = res.body;
+                        if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
+                        const isMd = file.name.endsWith('.md');
+                        const htmlContent = isMd ? markdownToHtml(text) : `<pre style="white-space:pre-wrap;word-break:break-word;">${text}</pre>`;
+                        const downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
+                        recordDownload(file.name, file.id);
+                        content.className = 'content markdown-body';
                         content.innerHTML = `
-                            <div class="breadcrumb">자료실(구글드라이브) > ${file.name}</div>
-                            <div class="loading"><div class="loading-spinner"></div><p>파일 내용을 불러오는 중...</p></div>
-                        `;
-
-                        try {
-                            await initGapiClient();
-                            const res = await gapi.client.drive.files.get({ fileId: file.id, alt: 'media' });
-                            let text = res.body;
-                            if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
-                            const isMd = file.name.endsWith('.md');
-                            const htmlContent = isMd ? markdownToHtml(text) : `<pre style="white-space:pre-wrap;word-break:break-word;">${text}</pre>`;
-                            const downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
-                            recordDownload(file.name, file.id);
-                            content.className = 'content markdown-body';
-                            content.innerHTML = `
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                                    <div>
-                                        <div class="breadcrumb">자료실(구글드라이브) > ${file.name}</div>
-                                        <h2>${file.name}</h2>
-                                    </div>
-                                    <a href="${downloadUrl}" target="_blank"
-                                        onclick="recordDownload('${file.name}','${file.id}')"
-                                        style="padding:8px 16px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer; text-decoration:none; white-space:nowrap;">
-                                        ⬇️ 다운로드
-                                    </a>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                                <div>
+                                    <div class="breadcrumb">자료실(구글드라이브) > ${folderName} > ${file.name}</div>
+                                    <h2>${file.name}</h2>
                                 </div>
-                                ${htmlContent}
-                            `;
-                        } catch (err) {
-                            content.innerHTML = `
-                                <div class="breadcrumb">자료실(구글드라이브) > ${file.name}</div>
-                                <div class="error">❌ 파일을 불러올 수 없습니다: ${err.message}</div>
-                            `;
-                        }
-                    });
-                    submenuElement.appendChild(menuItem);
-                });
+                                <a href="${downloadUrl}" target="_blank"
+                                    onclick="recordDownload('${file.name}','${file.id}')"
+                                    style="padding:8px 16px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer; text-decoration:none; white-space:nowrap;">
+                                    ⬇️ 다운로드
+                                </a>
+                            </div>
+                            ${htmlContent}
+                        `;
+                    } catch (err) {
+                        content.innerHTML = `
+                            <div class="breadcrumb">자료실(구글드라이브) > ${folderName} > ${file.name}</div>
+                            <div class="error">❌ 파일을 불러올 수 없습니다: ${err.message}</div>
+                        `;
+                    }
+                };
+
+                // 루트 파일 (폴더에 속하지 않은 파일)
+                if (tree.files.length > 0) {
+                    const { folderHeader, fileList } = buildFolderBlock('루트', tree.files, allFileLists, onFileClick);
+                    submenuElement.appendChild(folderHeader);
+                    submenuElement.appendChild(fileList);
+                }
+
+                // 하위 폴더
+                for (const subFolder of tree.subFolders) {
+                    const subTree = await fetchDriveTree(subFolder.id, subFolder.name);
+                    if (subTree.files.length === 0) continue;
+                    const { folderHeader, fileList } = buildFolderBlock(subFolder.name, subTree.files, allFileLists, onFileClick);
+                    submenuElement.appendChild(folderHeader);
+                    submenuElement.appendChild(fileList);
+                }
+
             } catch (err) {
-                submenuElement.innerHTML = '';
+                if (submenuElement.contains(loadingItem)) submenuElement.removeChild(loadingItem);
+                driveMenuLoaded = false;
                 const errorItem = document.createElement('div');
                 errorItem.className = 'dropdown-item';
                 errorItem.style.color = '#e74c3c';
-                errorItem.textContent = '❌ Drive 목록을 불러오지 못했습니다.';
+                errorItem.textContent = '❌ Drive 목록을 불러오지 못했습니다: ' + err.message;
                 submenuElement.appendChild(errorItem);
             }
         }
@@ -577,7 +660,6 @@
         // -------- 옵시디안 메뉴 --------
         async function populateObsidianMenu(submenuElement) {
             if (obsidianMenuLoaded) return;
-            // ✅ 수정: 성공 후에만 true 설정 (오류 시 재시도 가능하도록)
 
             const loadingItem = document.createElement('div');
             loadingItem.className = 'dropdown-item';
@@ -588,14 +670,10 @@
                 const response = await fetch('http://localhost:3000/api/obsidian-files');
                 if (!response.ok) throw new Error('파일 목록을 불러올 수 없습니다');
                 const files = await response.json();
-
-                // 볼트를 못 찾은 경우
                 if (files.error) throw new Error(files.error);
 
-                console.log('[Obsidian] 서버 응답 파일 수:', files.length);
-                console.log('[Obsidian] 첫 번째 파일 구조:', files[0]);
                 submenuElement.removeChild(loadingItem);
-                obsidianMenuLoaded = true; // ✅ 성공 후 설정
+                obsidianMenuLoaded = true;
 
                 if (files.length === 0) {
                     const emptyItem = document.createElement('div');
@@ -613,156 +691,58 @@
                     grouped[folderKey].push(file);
                 });
 
-                // ── 전체 펼침 / 전체 축소 버튼 ──
-                const ctrlBar = document.createElement('div');
-                ctrlBar.style.cssText = 'display:flex; gap:6px; padding:6px 10px; background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.07);';
+                const allFileLists = [];
 
-                const btnExpandAll = document.createElement('button');
-                btnExpandAll.textContent = '▼ 전체 펼침';
-                btnExpandAll.style.cssText = 'flex:1; padding:4px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
+                // 전체 펼침/축소 버튼
+                submenuElement.appendChild(buildCtrlBar(allFileLists));
 
-                const btnCollapseAll = document.createElement('button');
-                btnCollapseAll.textContent = '▲ 전체 축소';
-                btnCollapseAll.style.cssText = 'flex:1; padding:4px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
-
-                ctrlBar.appendChild(btnExpandAll);
-                ctrlBar.appendChild(btnCollapseAll);
-                submenuElement.appendChild(ctrlBar);
-
-                const allFileLists = []; // 접기/펼치기 제어용
-
+                // 폴더별 렌더링
                 Object.keys(grouped).sort().forEach(folderKey => {
-                    // ── 폴더 헤더 ──
-                    const folderHeader = document.createElement('div');
-                    folderHeader.style.cssText = `
-                        padding: 8px 14px;
-                        font-size: 12px;
-                        color: rgba(255,255,255,0.7);
-                        background: rgba(0,0,0,0.25);
-                        border-bottom: 1px solid rgba(255,255,255,0.07);
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        user-select: none;
-                    `;
-
-                    const folderLabel = document.createElement('span');
-                    folderLabel.textContent = '📂 ' + folderKey;
-
-                    const folderArrow = document.createElement('span');
-                    folderArrow.textContent = '▾';
-                    folderArrow.style.cssText = 'font-size:11px; transition:transform 0.2s; display:inline-block;';
-
-                    folderHeader.appendChild(folderLabel);
-                    folderHeader.appendChild(folderArrow);
-
-                    // ── 파일 목록 래퍼 (max-height 트랜지션으로 접기/펼치기) ──
-                    const fileList = document.createElement('div');
-                    fileList.style.cssText = 'overflow:hidden; transition:max-height 0.25s ease;';
-                    // 펼친 상태로 시작 — 파일 수 × 약 38px
-                    const openHeight = grouped[folderKey].length * 38 + 'px';
-                    fileList.style.maxHeight = openHeight;
-                    fileList._openHeight = openHeight;
-                    fileList._isOpen = true;
-
-                    allFileLists.push({ fileList, folderArrow, openHeight });
-
-                    // 폴더 헤더 클릭 → 토글
-                    folderHeader.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        if (fileList._isOpen) {
-                            fileList.style.maxHeight = '0';
-                            folderArrow.style.transform = 'rotate(-90deg)';
-                            fileList._isOpen = false;
-                        } else {
-                            fileList.style.maxHeight = fileList._openHeight;
-                            folderArrow.style.transform = 'rotate(0deg)';
-                            fileList._isOpen = true;
+                    const onFileClick = async (file) => {
+                        try {
+                            const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
+                            if (!fileRes.ok) throw new Error('파일을 불러올 수 없습니다');
+                            const data = await fileRes.json();
+                            content.className = 'content markdown-body';
+                            content.innerHTML = `
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                                    <div>
+                                        <div class="breadcrumb">자료실(옵시디안) > ${folderKey} > ${file.name}</div>
+                                        <h2>${file.name}</h2>
+                                    </div>
+                                    <button onclick="downloadObsidianFile('${file.path}', '${file.name}')"
+                                        style="padding:8px 16px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer;">
+                                        ⬇️ 다운로드
+                                    </button>
+                                </div>
+                                ${markdownToHtml(data.content)}
+                            `;
+                        } catch (err) {
+                            content.innerHTML = `<p style="color:red;">파일을 불러올 수 없습니다: ${err.message}</p>`;
                         }
-                    });
-
+                    };
+                    const { folderHeader, fileList } = buildFolderBlock(folderKey, grouped[folderKey], allFileLists, onFileClick);
                     submenuElement.appendChild(folderHeader);
                     submenuElement.appendChild(fileList);
-
-                    // ── 파일 아이템 ──
-                    grouped[folderKey].forEach(file => {
-                        const menuItem = document.createElement('div');
-                        menuItem.className = 'dropdown-item';
-                        menuItem.style.paddingLeft = '26px';
-                        menuItem.textContent = '📄 ' + file.name;
-
-                        menuItem.addEventListener('click', async (e) => {
-                            e.stopPropagation();
-                            try {
-                                const fileRes = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(file.path)}`);
-                                if (!fileRes.ok) throw new Error('파일을 불러올 수 없습니다');
-                                const data = await fileRes.json();
-                                const htmlContent = markdownToHtml(data.content);
-                                content.className = 'content markdown-body';
-                                content.innerHTML = `
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                                        <div>
-                                            <div class="breadcrumb">자료실(옵시디안) > ${folderKey} > ${file.name}</div>
-                                            <h2>${file.name}</h2>
-                                        </div>
-                                        <button onclick="downloadObsidianFile('${file.path}', '${file.name}')"
-                                            style="padding:8px 16px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer;">
-                                            ⬇️ 다운로드
-                                        </button>
-                                    </div>
-                                    ${htmlContent}
-                                `;
-                            } catch (err) {
-                                content.innerHTML = `<p style="color:red;">파일을 불러올 수 없습니다: ${err.message}</p>`;
-                            }
-                        });
-                        fileList.appendChild(menuItem);
-                    });
-                });
-
-                // 전체 펼침 / 전체 축소 버튼 동작
-                btnExpandAll.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    allFileLists.forEach(({ fileList, folderArrow, openHeight }) => {
-                        fileList.style.maxHeight = openHeight;
-                        folderArrow.style.transform = 'rotate(0deg)';
-                        fileList._isOpen = true;
-                    });
-                });
-                btnCollapseAll.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    allFileLists.forEach(({ fileList, folderArrow }) => {
-                        fileList.style.maxHeight = '0';
-                        folderArrow.style.transform = 'rotate(-90deg)';
-                        fileList._isOpen = false;
-                    });
                 });
 
             } catch (err) {
-                // ✅ loadingItem이 아직 있으면 제거
                 if (submenuElement.contains(loadingItem)) submenuElement.removeChild(loadingItem);
                 obsidianMenuLoaded = false;
 
-                // 발견된 볼트 목록 표시 시도
                 try {
                     const vaultRes = await fetch('http://localhost:3000/api/vaults');
                     const vaults = await vaultRes.json();
                     if (vaults.length > 0) {
                         const infoItem = document.createElement('div');
                         infoItem.className = 'dropdown-item';
-                        infoItem.style.color = '#f39c12';
-                        infoItem.style.fontSize = '12px';
-                        infoItem.style.whiteSpace = 'normal';
-                        infoItem.style.lineHeight = '1.6';
+                        infoItem.style.cssText = 'color:#f39c12; font-size:12px; white-space:normal; line-height:1.6;';
                         infoItem.textContent = '⚠️ 볼트를 찾지 못했습니다. server.js 재시작 후 다시 시도하세요.';
                         submenuElement.appendChild(infoItem);
                         vaults.forEach(v => {
                             const vItem = document.createElement('div');
                             vItem.className = 'dropdown-item';
-                            vItem.style.fontSize = '11px';
-                            vItem.style.color = 'rgba(255,255,255,0.5)';
-                            vItem.style.whiteSpace = 'normal';
+                            vItem.style.cssText = 'font-size:11px; color:rgba(255,255,255,0.5); white-space:normal;';
                             vItem.textContent = '📁 ' + v;
                             submenuElement.appendChild(vItem);
                         });
@@ -776,6 +756,41 @@
                 errorItem.textContent = '⚠️ 로컬 서버가 실행 중이 아닙니다. server.js를 시작하세요.';
                 submenuElement.appendChild(errorItem);
             }
+        }
+
+        // -------- 전체 펼침/축소 버튼 바 생성 공통 함수 --------
+        function buildCtrlBar(allFileLists) {
+            const ctrlBar = document.createElement('div');
+            ctrlBar.style.cssText = 'display:flex; gap:6px; padding:6px 10px; background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.07);';
+            const btnStyle = 'flex:1; padding:4px 0; font-size:11px; background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.75); border:none; border-radius:4px; cursor:pointer;';
+
+            const btnExpand = document.createElement('button');
+            btnExpand.textContent = '▼ 전체 펼침';
+            btnExpand.style.cssText = btnStyle;
+            btnExpand.addEventListener('click', (e) => {
+                e.stopPropagation();
+                allFileLists.forEach(({ fileList, folderArrow, openHeight }) => {
+                    fileList.style.maxHeight = openHeight;
+                    folderArrow.style.transform = 'rotate(0deg)';
+                    fileList._isOpen = true;
+                });
+            });
+
+            const btnCollapse = document.createElement('button');
+            btnCollapse.textContent = '▲ 전체 축소';
+            btnCollapse.style.cssText = btnStyle;
+            btnCollapse.addEventListener('click', (e) => {
+                e.stopPropagation();
+                allFileLists.forEach(({ fileList, folderArrow }) => {
+                    fileList.style.maxHeight = '0';
+                    folderArrow.style.transform = 'rotate(-90deg)';
+                    fileList._isOpen = false;
+                });
+            });
+
+            ctrlBar.appendChild(btnExpand);
+            ctrlBar.appendChild(btnCollapse);
+            return ctrlBar;
         }
 
         // -------- 옵시디안 파일 다운로드 --------
