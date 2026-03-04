@@ -189,7 +189,10 @@
 <script>
     const GOOGLE_API_KEY = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
     const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
-    const SERVER_BASE = `${location.protocol}//${location.hostname}:3000`;
+    // file://로 열었을 때는 localhost:3000, http로 열었을 때는 같은 호스트 사용
+    const SERVER_BASE = location.protocol === 'file:'
+        ? 'http://localhost:3000'
+        : `${location.protocol}//${location.hostname}:3000`;
 
     const menuData = {
         "소개": { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
