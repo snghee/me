@@ -28,6 +28,7 @@
             z-index: 1000;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             flex-shrink: 0;
+            overflow: visible; /* ✅ 드롭다운 클리핑 방지 */
         }
 
         .navbar-brand {
@@ -45,7 +46,8 @@
             align-items: center;
             gap: 4px;
             flex: 1;
-            overflow-x: auto;
+            /* overflow-x: auto 제거 — absolute 드롭다운이 잘리는 원인 */
+            overflow: visible;
             scrollbar-width: none;
         }
 
