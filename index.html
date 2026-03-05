@@ -987,10 +987,9 @@
         }
 
         // ========================================
-        // ✅ 드롭다운 열기/닫기 - 플래그 방식
+        // ✅ 드롭다운: CSS hover 기반 + JS는 동적로드만
         // ========================================
         let activeDropdown = null;
-        let justOpened = false; // 방금 열었는지 추적하는 플래그
 
         function closeAllDropdowns() {
             document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('show'));
@@ -998,15 +997,9 @@
             activeDropdown = null;
         }
 
-        // 외부 클릭 시 닫기
+        // nav-item 영역 밖 클릭 시 닫기
         document.addEventListener('click', (e) => {
-            if (justOpened) {
-                justOpened = false; // 방금 열린 경우는 무시
-                return;
-            }
-            if (!e.target.closest('.nav-item')) {
-                closeAllDropdowns();
-            }
+            if (!e.target.closest('.nav-item')) closeAllDropdowns();
         });
 
         function renderMenu() {
@@ -1025,17 +1018,33 @@
                 const dropdown = document.createElement('div');
                 dropdown.className = 'dropdown';
 
-                navLink.addEventListener('click', async (e) => {
-                    const isOpen = dropdown.classList.contains('show');
-                    closeAllDropdowns();
+                // ✅ nav-item 자체에 이벤트 위임 - 클릭이 어디서 발생해도 처리
+                navItem.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // document 이벤트로 전파 차단
 
-                    if (!isOpen) {
+                    // 드롭다운 아이템 클릭은 별도 처리
+                    if (e.target.closest('.dropdown-item') || e.target.closest('.dropdown-folder')) return;
+
+                    const isOpen = dropdown.classList.contains('show');
+
+                    // 다른 드롭다운 모두 닫기
+                    document.querySelectorAll('.dropdown').forEach(d => {
+                        if (d !== dropdown) d.classList.remove('show');
+                    });
+                    document.querySelectorAll('.nav-link').forEach(l => {
+                        if (l !== navLink) l.classList.remove('open');
+                    });
+
+                    if (isOpen) {
+                        dropdown.classList.remove('show');
+                        navLink.classList.remove('open');
+                        activeDropdown = null;
+                    } else {
                         dropdown.classList.add('show');
                         navLink.classList.add('open');
                         activeDropdown = dropdown;
-                        justOpened = true; // 방금 열었다고 표시 → document click 무시
 
-                        // 동적 메뉴 로드
+                        // 동적 메뉴 로드 (최초 1회)
                         if (folder === '자료실(구글드라이브)' && dropdown.childElementCount === 0) {
                             await populateServiceMenu(dropdown);
                         }
@@ -1052,6 +1061,7 @@
                         dropItem.className = 'dropdown-item';
                         dropItem.textContent = itemName;
                         dropItem.addEventListener('click', (e) => {
+                            e.stopPropagation();
                             closeAllDropdowns();
                             document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
                             dropItem.classList.add('active');
