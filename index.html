@@ -6,167 +6,64 @@
 <title>SBJ DNX 내부 자료 포털</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
 <style>
-/* 기본 레이아웃 */
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Segoe UI', sans-serif; display:flex; flex-direction:column; min-height:100vh; background:#f8f9fa; }
+body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
 
-/* 네비게이션 바 */
+/* ── 네비게이션 ── */
 .navbar {
   background:#2c3e50; color:white;
   display:flex; align-items:center;
-  padding:0 20px; height:60px;
+  padding:0 20px; height:56px;
   position:sticky; top:0; z-index:1000;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
-.navbar-brand { font-size:18px; font-weight:bold; margin-right:30px; cursor:pointer; }
-.navbar-menu { display:flex; align-items:center; gap:5px; flex:1; height:100%; }
+.navbar-brand { font-size:18px; font-weight:bold; margin-right:30px; white-space:nowrap; }
+.navbar-menu  { display:flex; align-items:center; gap:4px; flex:1; overflow-x:auto; }
+.navbar-menu::-webkit-scrollbar { display:none; }
 
-/* 드롭다운 메뉴 핵심 스타일 */
-.nav-item { position:relative; height:100%; display:flex; align-items:center; }
+/* ── 메뉴 버튼 ── */
+.nav-item { position:relative; }
 .nav-btn {
-  padding:0 15px; height:100%; display:flex; align-items:center;
-  background:none; border:none; color:white; cursor:pointer; font-size:15px;
+  display:flex; align-items:center; gap:6px;
+  padding:8px 14px; cursor:pointer;
+  border-radius:6px; font-size:14px; color:white;
+  white-space:nowrap; user-select:none;
+  background:none; border:none;
 }
-.nav-btn:hover { background:rgba(255,255,255,0.1); }
+.nav-btn:hover { background:#3d5166; }
+.nav-btn.open  { background:#3d5166; }
+.nav-btn .arrow { font-size:10px; transition:transform .2s; display:inline-block; }
+.nav-btn.open .arrow { transform:rotate(180deg); }
 
+/* ── 드롭다운 ── */
 .dropdown {
-  display: none; /* 기본 숨김 */
-  position: absolute; top: 100%; left: 0;
-  background: white; min-width: 200px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  border-radius: 0 0 4px 4px; padding: 8px 0;
-  z-index: 2000; border-top: 2px solid #3498db;
+  display:none;
+  position:absolute; top:calc(100% + 4px); left:0;
+  background:#2c3e50; min-width:200px;
+  border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.3);
+  z-index:9999; max-height:70vh; overflow-y:auto;
+  scrollbar-width:thin; scrollbar-color:#4a6280 #2c3e50;
+}
+.dropdown.open { display:block; }
+.dropdown::-webkit-scrollbar { width:4px; }
+.dropdown::-webkit-scrollbar-thumb { background:#4a6280; border-radius:2px; }
+.dd-item {
+  padding:10px 16px; cursor:pointer; font-size:13px;
+  color:rgba(255,255,255,.85);
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.dd-item:last-child { border-bottom:none; }
+.dd-item:hover  { background:#3498db; color:white; }
+.dd-item.active { color:#f39c12; font-weight:bold; }
+.dd-folder {
+  padding:6px 16px 4px; font-size:11px;
+  color:rgba(255,255,255,.4); text-transform:uppercase;
+  letter-spacing:.5px; background:rgba(0,0,0,.15);
+  border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer;
 }
 
-/* [수정] 마우스 오버 시 드롭다운 표시 */
-.nav-item:hover .dropdown {
-  display: block;
-}
-
-.dropdown-item {
-  padding: 10px 20px; color: #333; font-size: 14px; cursor: pointer;
-  white-space: nowrap; transition: background 0.2s;
-}
-.dropdown-item:hover { background: #f1f8ff; color: #3498db; }
-
-.content { flex:1; padding:40px 20px; max-width:1100px; margin:0 auto; width:100%; background:white; }
-</style>
-</head>
-<body>
-
-<nav class="navbar">
-  <div class="navbar-brand" onclick="location.reload()">🏦 SBJ DNX 포털</div>
-  <div class="navbar-menu" id="navbar-menu"></div>
-</nav>
-
-<div class="content markdown-body" id="content">
-  <h1>대시보드</h1>
-  <p>상단 메뉴를 통해 필요한 문서를 확인하세요.</p>
-</div>
-
-<script>
-// 메뉴 구성 데이터
-const menuData = {
-  "회사소개": { "개요": "about.md", "조직도": "org.md" },
-  "Cloud 자료실": "DRIVE",
-  "로컬 지식고": "OBSIDIAN"
-};
-
-const SERVICE_FOLDER_ID = 'YOUR_FOLDER_ID';
-
-function renderMenu() {
-  const container = document.getElementById('navbar-menu');
-  container.innerHTML = '';
-
-  Object.entries(menuData).forEach(([title, content]) => {
-    const navItem = document.createElement('div');
-    navItem.className = 'nav-item';
-
-    const btn = document.createElement('button');
-    btn.className = 'nav-btn';
-    btn.innerHTML = `${title} ▾`;
-
-    const dropdown = document.createElement('div');
-    dropdown.className = 'dropdown';
-
-    // 정적 메뉴 생성
-    if (typeof content === 'object') {
-      Object.entries(content).forEach(([name, path]) => {
-        const item = document.createElement('div');
-        item.className = 'dropdown-item';
-        item.textContent = name;
-        item.onclick = () => loadFile(path, name, title);
-        dropdown.appendChild(item);
-      });
-    }
-
-    // [수정] 동적 로딩 이벤트 리스너 (마우스 진입 시)
-    navItem.addEventListener('mouseenter', async () => {
-      if (content === 'DRIVE') {
-        await populateDriveMenu(dropdown, title);
-      } else if (content === 'OBSIDIAN') {
-        await populateObsidianMenu(dropdown, title);
-      }
-    });
-
-    navItem.appendChild(btn);
-    navItem.appendChild(dropdown);
-    container.appendChild(navItem);
-  });
-}
-
-async function populateDriveMenu(dropdown, folderName) {
-  // 이미 로드된 경우 중복 호출 방지
-  if (dropdown.children.length > 0 && !dropdown.innerText.includes("로딩")) return;
-  
-  dropdown.innerHTML = '<div class="dropdown-item">🔄 로딩 중...</div>';
-  
-  try {
-    // 실제 API 호출 로직 (예시 데이터)
-    const files = await fetchDriveFiles(SERVICE_FOLDER_ID); 
-    dropdown.innerHTML = '';
-    files.forEach(file => {
-      const item = document.createElement('div');
-      item.className = 'dropdown-item';
-      item.textContent = '📄 ' + file.name;
-      item.onclick = () => loadFile(file.id, file.name, folderName);
-      dropdown.appendChild(item);
-    });
-  } catch (e) {
-    dropdown.innerHTML = '<div class="dropdown-item">⚠️ 로드 실패</div>';
-  }
-}
-
-async function populateObsidianMenu(dropdown, folderName) {
-  if (dropdown.children.length > 0 && !dropdown.innerText.includes("연결")) return;
-  dropdown.innerHTML = '<div class="dropdown-item">🔄 연결 중...</div>';
-  
-  try {
-    const response = await fetch('http://localhost:3000/api/obsidian-files');
-    const files = await response.json();
-    dropdown.innerHTML = '';
-    files.forEach(file => {
-      const item = document.createElement('div');
-      item.className = 'dropdown-item';
-      item.textContent = '📝 ' + file.name;
-      item.onclick = () => loadFile(file.path, file.name, folderName);
-      dropdown.appendChild(item);
-    });
-  } catch (e) {
-    dropdown.innerHTML = '<div class="dropdown-item">⚠️ 서버 오프라인</div>';
-  }
-}
-
-function loadFile(path, name, folder) {
-  document.getElementById('content').innerHTML = `<h2>${name}</h2><p>${folder} 섹션의 문서를 로드했습니다.</p>`;
-}
-
-// 가상 파일 리스트 (테스트용)
-async function fetchDriveFiles() {
-  return new Promise(res => setTimeout(() => res([{id:'1', name:'업무지침.md'}, {id:'2', name:'보안규정.md'}]), 500));
-}
-
-window.onload = renderMenu;
-</script>
-</body>
-</html>
+/* ── 콘텐츠 ── */
+.content { flex:1; overflow-y:auto; background:white; }
+.content.markdown-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#24292e; }
+.file-inner { padding:32px 60px; }
+.breadcrumb {
