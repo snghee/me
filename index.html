@@ -352,11 +352,11 @@ async function populateServiceMenu(dd) {
     const ctrlBar = document.createElement('div');
     ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
     const btnExpandG = document.createElement('button');
-    btnExpandG.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v3H2V2zm9 0h3v5h-2V4h-3V2zm-9 9h2v3h3v2H2v-5zm11 3h-3v2h5v-5h-2v3z"/></svg>';
+    btnExpandG.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
     btnExpandG.title = '전체 펼치기';
     btnExpandG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
     const btnCollapseG = document.createElement('button');
-    btnCollapseG.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 2H2v3h2V3h3V1H5v1zm6-1v2h3v3h2V1h-5zm-6 11H3v-3H1v5h5v-2zm8-3v3h-3v2h5v-5h-2z"/></svg>';
+    btnCollapseG.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>';
     btnCollapseG.title = '전체 접기';
     btnCollapseG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
     btnExpandG.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>'); });
@@ -427,12 +427,12 @@ async function populateObsidianMenu(dd) {
     const ctrlBar = document.createElement('div');
     ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
     const btnExpand = document.createElement('button');
-    btnExpand.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v3H2V2zm9 0h3v5h-2V4h-3V2zm-9 9h2v3h3v2H2v-5zm11 3h-3v2h5v-5h-2v3z"/></svg>';
+    btnExpand.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
     btnExpand.title = '전체 펼치기';
     btnExpand.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
     btnExpand.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>'); });
     const btnCollapse = document.createElement('button');
-    btnCollapse.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 2H2v3h2V3h3V1H5v1zm6-1v2h3v3h2V1h-5zm-6 11H3v-3H1v5h5v-2zm8-3v3h-3v2h5v-5h-2z"/></svg>';
+    btnCollapse.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>';
     btnCollapse.title = '전체 접기';
     btnCollapse.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
     btnCollapse.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>'); });
