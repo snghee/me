@@ -379,13 +379,37 @@ async function populateObsidianMenu(dd) {
     if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
     const grouped = {};
     files.forEach(f => { const fol=f.folder||'루트'; if(!grouped[fol]) grouped[fol]=[]; grouped[fol].push(f); });
+
+    // 전체 확장/축소 버튼
+    const ctrlBar = document.createElement('div');
+    ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
+    const btnExpand = document.createElement('button');
+    btnExpand.innerHTML = '⊞';
+    btnExpand.title = '전체 펼치기';
+    btnExpand.style.cssText = 'background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:14px;';
+    btnExpand.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.textContent='▾'); });
+    const btnCollapse = document.createElement('button');
+    btnCollapse.innerHTML = '⊟';
+    btnCollapse.title = '전체 접기';
+    btnCollapse.style.cssText = 'background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:14px;';
+    btnCollapse.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.textContent='▸'); });
+    ctrlBar.appendChild(btnExpand);
+    ctrlBar.appendChild(btnCollapse);
+    dd.appendChild(ctrlBar);
+
     Object.keys(grouped).sort().forEach(fol => {
       const folDiv = document.createElement('div');
       folDiv.className = 'dd-folder';
-      folDiv.textContent = '📁 '+fol;
+      folDiv.innerHTML = '<span class="folder-arrow" style="margin-right:6px;font-size:10px;">▸</span>📁 '+fol;
       const list = document.createElement('div');
+      list.className = 'folder-list';
       list.style.display = 'none';
-      folDiv.addEventListener('click', (e) => { e.stopPropagation(); list.style.display = list.style.display==='none'?'block':'none'; });
+      folDiv.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = list.style.display !== 'none';
+        list.style.display = open ? 'none' : 'block';
+        folDiv.querySelector('.folder-arrow').textContent = open ? '▸' : '▾';
+      });
       dd.appendChild(folDiv);
       dd.appendChild(list);
       grouped[fol].forEach(f => {
