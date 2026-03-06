@@ -262,19 +262,17 @@ function renderMenu() {
     dd.id = 'dd-' + id;
     dd.className = 'dropdown';
 
-    // 테스트 파일과 동일: already 체크 후 setTimeout으로 열기
-    btn.addEventListener('click', (function(capturedId, capturedFolder, capturedDd) {
-      return function() {
+    btn.addEventListener('mousedown', (function(capturedId, capturedFolder, capturedDd) {
+      return async function(e) {
+        e.preventDefault(); // click 이벤트 발생 억제 (document click 방지)
         const already = (openId === capturedId);
-        setTimeout(async function() {
-          closeAll();
-          if (already) return;
-          capturedDd.classList.add('open');
-          document.getElementById('btn-' + capturedId).classList.add('open');
-          openId = capturedId;
-          if (capturedFolder === '자료실(구글드라이브)' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
-          if (capturedFolder === '자료실(옵시디안)'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
-        }, 0);
+        closeAll();
+        if (already) return;
+        capturedDd.classList.add('open');
+        document.getElementById('btn-' + capturedId).classList.add('open');
+        openId = capturedId;
+        if (capturedFolder === '자료실(구글드라이브)' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
+        if (capturedFolder === '자료실(옵시디안)'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
       };
     })(id, folder, dd));
 
