@@ -216,11 +216,7 @@ async function fetchDriveFiles(id) {
   return r.result.files||[];
 }
 
-/* ── 드롭다운 관리 ──
-   열린 dd의 id를 openId로 추적.
-   버튼 클릭 → stopPropagation → openId 토글
-   document 클릭 → 닫기
-*/
+/* ── 드롭다운 관리 (수정됨) ── */
 let openId = null;
 
 function closeAll() {
@@ -230,23 +226,28 @@ function closeAll() {
   openId = null;
 }
 
+// 바탕화면 클릭 시 메뉴 닫기
 document.addEventListener('click', closeAll);
 
-async function toggleMenu(id, folder, ddEl) {
+async function toggleMenu(e, id, folder, ddEl) {
+  // 이벤트 전파 중단: document의 closeAll이 실행되는 것을 방지
+  e.stopPropagation();
+  
   const already = (openId === id);
-  closeAll();
-  if (already) return;
-  // setTimeout 0: document click 이벤트가 closeAll 실행한 뒤에 열기
-  setTimeout(async () => {
+  closeAll(); // 일단 다른 열린 메뉴는 닫음
+  
+  if (!already) {
     ddEl.classList.add('open');
     document.getElementById('btn-'+id)?.classList.add('open');
     openId = id;
+    
+    // 데이터 로딩 트리거
     if (folder==='자료실(구글드라이브)' && ddEl.childElementCount===0) await populateServiceMenu(ddEl);
     if (folder==='자료실(옵시디안)'     && ddEl.childElementCount===0) await populateObsidianMenu(ddEl);
-  }, 0);
+  }
 }
 
-/* ── 메뉴 생성 ── */
+/* ── 메뉴 생성 (수정됨) ── */
 function renderMenu() {
   const nav    = document.getElementById('navbar-menu');
   const drawer = document.getElementById('mobile-drawer-content');
@@ -266,12 +267,12 @@ function renderMenu() {
     dd.id = 'dd-'+id;
     dd.className = 'dropdown';
 
-    /* 버튼 클릭 */
+    /* 버튼 클릭: 수정된 toggleMenu 호출 */
     btn.addEventListener('click', (e) => {
-      toggleMenu(id, folder, dd);
+      toggleMenu(e, id, folder, dd);
     });
 
-    /* dd 내부 클릭은 document 닫기 막기 */
+    /* dd 내부 클릭 시 닫힘 방지 */
     dd.addEventListener('click', (e) => e.stopPropagation());
 
     /* 정적 아이템 */
@@ -312,7 +313,7 @@ function renderMenu() {
       const di = document.createElement('div');
       di.className = 'drawer-item';
       di.textContent = '📂 열기...';
-      di.addEventListener('click', () => { closeDrawer(); btn.click(); });
+      di.addEventListener('click', (e) => { closeDrawer(); btn.click(); });
       sec.appendChild(di);
     }
     drawer.appendChild(sec);
