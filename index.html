@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SBJ Bank 내부 자료 포털</title>
+<title>SBJ DNX 내부 자료 포털</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -133,7 +133,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 <body>
 
 <nav class="navbar">
-  <div class="navbar-brand">🏦 SBJ Bank</div>
+  <div class="navbar-brand">🏦 SBJ DNX</div>
   <div class="navbar-menu" id="navbar-menu"></div>
   <button class="hamburger" onclick="toggleDrawer()">☰</button>
 </nav>
@@ -149,8 +149,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
     <div class="hero-section">
       <div class="hero-inner">
         <div class="hero-tag">Internal Document Portal</div>
-        <div class="hero-title">SBJ Bank<br><span>내부 자료 포털</span></div>
-        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ Bank의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
+        <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
+        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
       </div>
       <div class="hero-deco">
         <div class="hero-deco-line" style="width:180px"></div>
@@ -235,13 +235,15 @@ document.addEventListener('click', closeAll);
 async function toggleMenu(id, folder, ddEl) {
   const already = (openId === id);
   closeAll();
-  if (already) return;           // 같은 버튼 → 닫기만
-  ddEl.classList.add('open');
-  document.getElementById('btn-'+id)?.classList.add('open');
-  openId = id;
-  // 동적 로드
-  if (folder==='자료실(구글드라이브)' && ddEl.childElementCount===0) await populateServiceMenu(ddEl);
-  if (folder==='자료실(옵시디안)'     && ddEl.childElementCount===0) await populateObsidianMenu(ddEl);
+  if (already) return;
+  // setTimeout 0: document click 이벤트가 closeAll 실행한 뒤에 열기
+  setTimeout(async () => {
+    ddEl.classList.add('open');
+    document.getElementById('btn-'+id)?.classList.add('open');
+    openId = id;
+    if (folder==='자료실(구글드라이브)' && ddEl.childElementCount===0) await populateServiceMenu(ddEl);
+    if (folder==='자료실(옵시디안)'     && ddEl.childElementCount===0) await populateObsidianMenu(ddEl);
+  }, 0);
 }
 
 /* ── 메뉴 생성 ── */
@@ -266,7 +268,6 @@ function renderMenu() {
 
     /* 버튼 클릭 */
     btn.addEventListener('click', (e) => {
-      e.stopPropagation();
       toggleMenu(id, folder, dd);
     });
 
