@@ -14,7 +14,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   background:#2c3e50; color:white;
   display:flex; align-items:center;
   padding:0 20px; height:56px;
-  position:sticky; top:0; z-index:1000;
+  position:sticky; top:0; z-index:100;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
 .navbar-brand { font-size:18px; font-weight:bold; margin-right:30px; white-space:nowrap; }
@@ -38,10 +38,10 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 /* ── 드롭다운 ── */
 .dropdown {
   display:none;
-  position:absolute; top:calc(100% + 4px); left:0;
+  position:fixed;
   background:#2c3e50; min-width:200px;
   border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.3);
-  z-index:9999; max-height:70vh; overflow-y:auto;
+  z-index:99999; max-height:70vh; overflow-y:auto;
   scrollbar-width:thin; scrollbar-color:#4a6280 #2c3e50;
 }
 .dropdown.open { display:block !important; }
@@ -273,6 +273,10 @@ function renderMenu() {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('open'));
         openId = null;
         if (!isOpen) {
+          // position:fixed 이므로 버튼 위치 계산
+          const btnRect = document.getElementById('btn-' + capturedId).getBoundingClientRect();
+          capturedDd.style.top  = btnRect.bottom + 4 + 'px';
+          capturedDd.style.left = btnRect.left + 'px';
           capturedDd.classList.add('open');
           document.getElementById('btn-' + capturedId).classList.add('open');
           openId = capturedId;
