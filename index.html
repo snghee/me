@@ -416,7 +416,7 @@ async function populateObsidianMenu(dd) {
         const item = makeDdItem('📄 '+f.name, async () => {
           closeAll();
           try {
-            const fr = await fetch(`http://localhost:3000/api/obsidian-file/${encodeURIComponent(f.path)}`);
+            const fr = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(f.path)}`);
             if (!fr.ok) throw new Error('파일 로드 실패');
             const data = await fr.text();
             contentEl.className='content markdown-body';
