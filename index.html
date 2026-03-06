@@ -44,7 +44,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   z-index:9999; max-height:70vh; overflow-y:auto;
   scrollbar-width:thin; scrollbar-color:#4a6280 #2c3e50;
 }
-.dropdown.open { display:block; }
+.dropdown.open { display:block !important; }
 .dropdown::-webkit-scrollbar { width:4px; }
 .dropdown::-webkit-scrollbar-thumb { background:#4a6280; border-radius:2px; }
 .dd-item {
@@ -242,7 +242,9 @@ function closeAll() {
   openId = null;
 }
 
-document.addEventListener('click', closeAll);
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.nav-item')) closeAll();
+});
 
 /* ── 메뉴 생성 ── */
 function renderMenu() {
@@ -262,17 +264,22 @@ function renderMenu() {
     dd.id = 'dd-' + id;
     dd.className = 'dropdown';
 
-    btn.addEventListener('mousedown', (function(capturedId, capturedFolder, capturedDd) {
+    btn.addEventListener('click', (function(capturedId, capturedFolder, capturedDd) {
       return async function(e) {
-        e.preventDefault(); // click 이벤트 발생 억제 (document click 방지)
-        const already = (openId === capturedId);
-        closeAll();
-        if (already) return;
-        capturedDd.classList.add('open');
-        document.getElementById('btn-' + capturedId).classList.add('open');
-        openId = capturedId;
-        if (capturedFolder === '자료실(구글드라이브)' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
-        if (capturedFolder === '자료실(옵시디안)'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
+        e.stopPropagation();
+        const isOpen = capturedDd.classList.contains('open');
+        console.log('[MENU CLICK] folder='+capturedFolder+' isOpen='+isOpen+' ddId='+capturedDd.id);
+        document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('open'));
+        openId = null;
+        if (!isOpen) {
+          capturedDd.classList.add('open');
+          document.getElementById('btn-' + capturedId).classList.add('open');
+          openId = capturedId;
+          console.log('[MENU] opened dd classList:', capturedDd.classList.toString());
+          if (capturedFolder === '자료실(구글드라이브)' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
+          if (capturedFolder === '자료실(옵시디안)'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
+        }
       };
     })(id, folder, dd));
 
