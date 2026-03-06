@@ -342,7 +342,6 @@ function makeDdItem(text, onClick) {
 
 /* ── 구글드라이브 메뉴 ── */
 async function populateServiceMenu(dd) {
-  if (driveLoaded) return; driveLoaded = true;
   dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
   try {
     const files = await fetchDriveFiles(SERVICE_FOLDER_ID);
@@ -369,7 +368,6 @@ async function populateServiceMenu(dd) {
 
 /* ── 옵시디안 메뉴 ── */
 async function populateObsidianMenu(dd) {
-  if (obsLoaded) return; obsLoaded = true;
   dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
   try {
     const r = await fetch('http://localhost:3000/api/obsidian-files');
@@ -408,7 +406,8 @@ async function populateObsidianMenu(dd) {
         e.stopPropagation();
         const open = list.style.display !== 'none';
         list.style.display = open ? 'none' : 'block';
-        folDiv.querySelector('.folder-arrow').textContent = open ? '▸' : '▾';
+        const arrow = folDiv.querySelector('.folder-arrow');
+        if (arrow) arrow.textContent = open ? '▸' : '▾';
       });
       dd.appendChild(folDiv);
       dd.appendChild(list);
