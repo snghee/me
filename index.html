@@ -202,6 +202,11 @@ const GOOGLE_API_KEY    = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
 const CLIENT_ID         = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
 const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
 
+// PC: localhost:3000 / 스마트폰: 192.168.50.49:3000 자동 감지
+const SERVER_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:3000'
+  : 'http://192.168.50.49:3000';
+
 const menuData = {
   "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
   "자료실(구글드라이브)": null,
@@ -415,7 +420,7 @@ async function populateServiceMenu(dd) {
 async function populateObsidianMenu(dd) {
   dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
   try {
-    const r = await fetch('http://localhost:3000/api/obsidian-files');
+    const r = await fetch(`${SERVER_BASE}/api/obsidian-files`);
     if (!r.ok) throw new Error('서버 연결 실패');
     const files = await r.json();
     dd.innerHTML = '';
@@ -460,7 +465,7 @@ async function populateObsidianMenu(dd) {
         const item = makeDdItem('📄 '+f.name, async () => {
           closeAll();
           try {
-            const fr = await fetch(`http://localhost:3000/api/obsidian-file?path=${encodeURIComponent(f.path)}`);
+            const fr = await fetch(`${SERVER_BASE}/api/obsidian-file?path=${encodeURIComponent(f.path)}`);
             if (!fr.ok) throw new Error('파일 로드 실패');
             const data = await fr.text();
             contentEl.className='content markdown-body';
@@ -476,7 +481,7 @@ async function populateObsidianMenu(dd) {
 
 async function downloadObsidianFile(path, name) {
   try {
-    const r = await fetch(`http://localhost:3000/api/download/${encodeURIComponent(path)}`);
+    const r = await fetch(`${SERVER_BASE}/api/download/${encodeURIComponent(path)}`);
     if (!r.ok) throw new Error('다운로드 실패');
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
