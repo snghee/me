@@ -6,128 +6,37 @@
 <title>SBJ DNX 내부 자료 포털</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
 <style>
+/* 기존 스타일 유지 */
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
-
-/* ── 네비게이션 ── */
-.navbar {
-  background:#2c3e50; color:white;
-  display:flex; align-items:center;
-  padding:0 20px; height:56px;
-  position:sticky; top:0; z-index:1000;
-  box-shadow:0 2px 8px rgba(0,0,0,.3);
-}
+.navbar { background:#2c3e50; color:white; display:flex; align-items:center; padding:0 20px; height:56px; position:sticky; top:0; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,.3); }
 .navbar-brand { font-size:18px; font-weight:bold; margin-right:30px; white-space:nowrap; }
-.navbar-menu  { display:flex; align-items:center; gap:4px; flex:1; overflow-x:auto; }
-.navbar-menu::-webkit-scrollbar { display:none; }
-
-/* ── 메뉴 버튼 ── */
+.navbar-menu { display:flex; align-items:center; gap:4px; flex:1; overflow-x:auto; }
 .nav-item { position:relative; }
-.nav-btn {
-  display:flex; align-items:center; gap:6px;
-  padding:8px 14px; cursor:pointer;
-  border-radius:6px; font-size:14px; color:white;
-  white-space:nowrap; user-select:none;
-  background:none; border:none;
-}
-.nav-btn:hover { background:#3d5166; }
-.nav-btn.open  { background:#3d5166; }
+.nav-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; cursor:pointer; border-radius:6px; font-size:14px; color:white; white-space:nowrap; user-select:none; background:none; border:none; }
+.nav-btn:hover, .nav-btn.open { background:#3d5166; }
 .nav-btn .arrow { font-size:10px; transition:transform .2s; display:inline-block; }
 .nav-btn.open .arrow { transform:rotate(180deg); }
-
-/* ── 드롭다운 ── */
-.dropdown {
-  display:none;
-  position:absolute; top:calc(100% + 4px); left:0;
-  background:#2c3e50; min-width:200px;
-  border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.3);
-  z-index:9999; max-height:70vh; overflow-y:auto;
-  scrollbar-width:thin; scrollbar-color:#4a6280 #2c3e50;
-}
+.dropdown { display:none; position:absolute; top:calc(100% + 4px); left:0; background:#2c3e50; min-width:200px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.3); z-index:9999; max-height:70vh; overflow-y:auto; }
 .dropdown.open { display:block; }
-.dropdown::-webkit-scrollbar { width:4px; }
-.dropdown::-webkit-scrollbar-thumb { background:#4a6280; border-radius:2px; }
-.dd-item {
-  padding:10px 16px; cursor:pointer; font-size:13px;
-  color:rgba(255,255,255,.85);
-  border-bottom:1px solid rgba(255,255,255,.05);
-}
-.dd-item:last-child { border-bottom:none; }
-.dd-item:hover  { background:#3498db; color:white; }
-.dd-item.active { color:#f39c12; font-weight:bold; }
-.dd-folder {
-  padding:6px 16px 4px; font-size:11px;
-  color:rgba(255,255,255,.4); text-transform:uppercase;
-  letter-spacing:.5px; background:rgba(0,0,0,.15);
-  border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer;
-}
-
-/* ── 콘텐츠 ── */
+.dd-item { padding:10px 16px; cursor:pointer; font-size:13px; color:rgba(255,255,255,.85); border-bottom:1px solid rgba(255,255,255,.05); }
+.dd-item:hover { background:#3498db; color:white; }
 .content { flex:1; overflow-y:auto; background:white; }
-.content.markdown-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#24292e; }
-.file-inner { padding:32px 60px; }
-.breadcrumb { font-size:12px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
-.loading { text-align:center; padding:40px; color:#999; }
-.loading-spinner { border:4px solid #f3f3f3; border-top:4px solid #3498db; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:20px auto; }
-@keyframes spin { to { transform:rotate(360deg); } }
-.err { background:#fee; border:1px solid #fcc; color:#c33; padding:15px; border-radius:5px; margin:20px 0; }
-
-/* ── 햄버거 ── */
-.hamburger { display:none; background:none; border:none; color:white; font-size:22px; cursor:pointer; margin-left:auto; padding:4px 8px; }
-.mobile-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1500; }
-.mobile-overlay.show { display:block; }
-.mobile-drawer { position:fixed; top:0; right:-280px; width:260px; height:100vh; background:#2c3e50; color:white; z-index:1800; transition:right .3s; overflow-y:auto; padding:60px 0 20px; }
-.mobile-drawer.open { right:0; }
-.drawer-close { position:absolute; top:14px; right:14px; background:none; border:none; color:white; font-size:22px; cursor:pointer; }
-.drawer-section { padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08); }
-.drawer-section-title { padding:8px 20px 4px; font-size:11px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.5px; }
-.drawer-item { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); }
-.drawer-item:hover { background:#3498db; color:white; }
-
-/* ── 히어로 ── */
-.hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:280px; display:flex; align-items:center; overflow:hidden; }
-.hero-section::before { content:''; position:absolute; top:-60px; right:-60px; width:400px; height:400px; background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%); pointer-events:none; }
-.hero-inner { position:relative; z-index:1; max-width:800px; }
-.hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
-.hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
-.hero-title span { color:#64b5f6; }
-.hero-subtitle { font-size:14px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
-.hero-deco { position:absolute; right:60px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:10px; opacity:.12; }
-.hero-deco-line { height:2px; background:white; border-radius:2px; }
-
-/* ── 통계 바 ── */
-.stats-bar { background:#f5f7fa; border-bottom:1px solid #e8edf2; padding:14px 60px; display:flex; align-items:center; gap:40px; }
-.stats-bar-label { font-size:11px; color:#999; font-weight:600; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
-.stats-bar-items { display:flex; gap:32px; flex:1; }
-.stats-bar-item { display:flex; align-items:center; gap:8px; font-size:12px; color:#666; }
-.stats-bar-num { font-size:16px; font-weight:700; color:#1a3a5c; }
-.stats-bar-reset { font-size:11px; color:#e74c3c; cursor:pointer; border:1px solid #fcc; background:#fff5f5; padding:4px 10px; border-radius:4px; white-space:nowrap; }
-.stats-bar-reset:hover { background:#fee; }
-
-/* ── 로그 ── */
+.markdown-body { padding:32px 60px; }
+.hero-section { background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px; }
+.stats-bar { background:#f5f7fa; border-bottom:1px solid #e8edf2; padding:14px 60px; display:flex; gap:40px; align-items:center; }
+.stats-bar-num { font-weight:700; color:#1a3a5c; }
 .main-content { padding:40px 60px; }
-.section-title { font-size:13px; font-weight:700; color:#1a3a5c; letter-spacing:1px; text-transform:uppercase; border-left:3px solid #3498db; padding-left:10px; margin-bottom:14px; }
-.log-table-wrap { border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-bottom:28px; }
-.log-scroll { max-height:160px; overflow-y:auto; }
-.log-table { width:100%; border-collapse:collapse; font-size:12px; }
-.log-table th { background:#f5f7fa; color:#888; font-weight:600; padding:9px 14px; text-align:left; border-bottom:1px solid #e8edf2; }
-.log-table td { padding:9px 14px; border-bottom:1px solid #f0f3f6; color:#444; }
-.log-table tr:last-child td { border-bottom:none; }
-.log-empty { padding:20px; text-align:center; color:#bbb; font-size:12px; }
 .two-col { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
-
-@media (max-width:768px) {
-  .navbar-menu { display:none; }
-  .hamburger { display:block; }
-  .hero-section { padding:40px 20px 36px; min-height:auto; }
-  .hero-deco { display:none; }
-  .hero-title { font-size:24px; }
-  .stats-bar { padding:12px 20px; gap:16px; flex-wrap:wrap; }
-  .stats-bar-items { gap:16px; flex-wrap:wrap; }
-  .main-content { padding:24px 20px; }
-  .two-col { grid-template-columns:1fr; }
-  .file-inner { padding:20px 16px; }
-}
+.log-table-wrap { border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-top:10px; }
+.log-table { width:100%; border-collapse:collapse; font-size:12px; }
+.log-table th { background:#f5f7fa; padding:10px; text-align:left; }
+.log-table td { padding:10px; border-top:1px solid #eee; }
+.hamburger { display:none; background:none; border:none; color:white; font-size:22px; cursor:pointer; margin-left:auto; }
+.mobile-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1500; }
+.mobile-drawer { position:fixed; top:0; right:-280px; width:260px; height:100vh; background:#2c3e50; z-index:1800; transition:0.3s; padding:60px 20px; color:white; }
+.mobile-drawer.open { right:0; }
+@media (max-width:768px) { .navbar-menu { display:none; } .hamburger { display:block; } .markdown-body, .hero-section, .stats-bar, .main-content { padding:20px; } .two-col { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -135,50 +44,31 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 <nav class="navbar">
   <div class="navbar-brand">🏦 SBJ DNX</div>
   <div class="navbar-menu" id="navbar-menu"></div>
-  <button class="hamburger" onclick="toggleDrawer()">☰</button>
+  <button class="hamburger" id="hamburger-btn">☰</button>
 </nav>
 
-<div class="mobile-overlay" id="mobileOverlay" onclick="closeDrawer()"></div>
+<div class="mobile-overlay" id="mobileOverlay"></div>
 <div class="mobile-drawer" id="mobileDrawer">
-  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <button id="drawer-close-btn" style="position:absolute; top:20px; right:20px; background:none; border:none; color:white; font-size:24px; cursor:pointer;">✕</button>
   <div id="mobile-drawer-content"></div>
 </div>
 
 <div class="content markdown-body" id="content">
   <div id="dashboard">
     <div class="hero-section">
-      <div class="hero-inner">
-        <div class="hero-tag">Internal Document Portal</div>
-        <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
-        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
-      </div>
-      <div class="hero-deco">
-        <div class="hero-deco-line" style="width:180px"></div>
-        <div class="hero-deco-line" style="width:120px"></div>
-        <div class="hero-deco-line" style="width:150px"></div>
-        <div class="hero-deco-line" style="width:90px"></div>
-        <div class="hero-deco-line" style="width:160px"></div>
-      </div>
+      <div class="hero-tag">Internal Document Portal</div>
+      <h1 class="hero-title">SBJ DNX<br><span style="color:#64b5f6">내부 자료 포털</span></h1>
+      <p style="opacity:0.7; margin-top:10px;">상단 메뉴에서 자료를 검색하고 열람하세요.</p>
     </div>
     <div class="stats-bar">
-      <span class="stats-bar-label">통계</span>
-      <div class="stats-bar-items">
-        <div class="stats-bar-item">👁️ 접속 <span class="stats-bar-num" id="stat-visits">0</span></div>
-        <div class="stats-bar-item">⬇️ 다운로드 <span class="stats-bar-num" id="stat-downloads">0</span></div>
-        <div class="stats-bar-item">📄 파일 수 <span class="stats-bar-num" id="stat-files">0</span></div>
-      </div>
-      <button class="stats-bar-reset" onclick="resetAllStats()">🗑️ 초기화</button>
+      <span>👁️ 접속 <span class="stats-bar-num" id="stat-visits">0</span></span>
+      <span>⬇️ 다운로드 <span class="stats-bar-num" id="stat-downloads">0</span></span>
+      <button onclick="resetAllStats()" style="margin-left:auto; font-size:11px; cursor:pointer;">초기화</button>
     </div>
     <div class="main-content">
       <div class="two-col">
-        <div>
-          <div class="section-title">최근 접속 기록</div>
-          <div class="log-table-wrap"><div class="log-scroll" id="visit-log"><div class="log-empty">접속 기록이 없습니다.</div></div></div>
-        </div>
-        <div>
-          <div class="section-title">파일 다운로드 통계</div>
-          <div class="log-table-wrap"><div class="log-scroll" id="download-log"><div class="log-empty">다운로드 기록이 없습니다.</div></div></div>
-        </div>
+        <div><h3>최근 접속</h3><div class="log-table-wrap" id="visit-log"></div></div>
+        <div><h3>다운로드 통계</h3><div class="log-table-wrap" id="download-log"></div></div>
       </div>
     </div>
   </div>
@@ -186,326 +76,186 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
-const GOOGLE_API_KEY    = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
-const CLIENT_ID         = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
-const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
-
+/* 설정 데이터 */
 const menuData = {
-  "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
+  "소개": { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
   "자료실(구글드라이브)": null,
-  "자료실(옵시디안)":    null,
-  "문서":              { "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
+  "자료실(옵시디안)": null,
+  "문서": { "사용 설명서":"user-manual.md", "FAQ":"faq.md", "📊 다운로드 통계":"STATS" }
 };
 
-const contentEl = document.getElementById('content');
-let driveInit=false, driveLoaded=false, obsLoaded=false;
+const GOOGLE_API_KEY = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
+const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
 
-/* ── Google Drive ── */
-function initGapi() {
-  return new Promise((res,rej) => {
-    if (driveInit) { res(); return; }
-    gapi.load('client', async () => {
-      try { await gapi.client.init({ apiKey:GOOGLE_API_KEY, discoveryDocs:['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }); driveInit=true; res(); }
-      catch(e) { rej(e); }
-    });
-  });
-}
-async function fetchDriveFiles(id) {
-  await initGapi();
-  const r = await gapi.client.drive.files.list({ q:`'${id}' in parents and trashed=false`, pageSize:100, fields:'files(id,name,mimeType)' });
-  return r.result.files||[];
-}
-
-/* ── 드롭다운 관리 (수정됨) ── */
 let openId = null;
+let driveLoaded = false;
+let obsLoaded = false;
 
-function closeAll() {
-  if (openId === null) return;
-  document.getElementById('dd-'+openId)?.classList.remove('open');
-  document.getElementById('btn-'+openId)?.classList.remove('open');
+/* 유틸리티: 모든 드롭다운 닫기 */
+function closeAllMenus() {
+  document.querySelectorAll('.dropdown, .nav-btn').forEach(el => el.classList.remove('open'));
   openId = null;
 }
 
-// 바탕화면 클릭 시 메뉴 닫기
-document.addEventListener('click', closeAll);
-
-async function toggleMenu(e, id, folder, ddEl) {
-  // 이벤트 전파 중단: document의 closeAll이 실행되는 것을 방지
-  e.stopPropagation();
-  
-  const already = (openId === id);
-  closeAll(); // 일단 다른 열린 메뉴는 닫음
-  
-  if (!already) {
-    ddEl.classList.add('open');
-    document.getElementById('btn-'+id)?.classList.add('open');
-    openId = id;
-    
-    // 데이터 로딩 트리거
-    if (folder==='자료실(구글드라이브)' && ddEl.childElementCount===0) await populateServiceMenu(ddEl);
-    if (folder==='자료실(옵시디안)'     && ddEl.childElementCount===0) await populateObsidianMenu(ddEl);
-  }
-}
-
-/* ── 메뉴 생성 (수정됨) ── */
-function renderMenu() {
-  const nav    = document.getElementById('navbar-menu');
+/* 메뉴 렌더링 */
+function initMenu() {
+  const nav = document.getElementById('navbar-menu');
   const drawer = document.getElementById('mobile-drawer-content');
-  let idx = 0;
-
-  for (const [folder, items] of Object.entries(menuData)) {
-    const id = idx++;
-
-    /* 버튼 */
+  
+  Object.keys(menuData).forEach((folder, idx) => {
+    // 데스크탑 메뉴
+    const itemContainer = document.createElement('div');
+    itemContainer.className = 'nav-item';
+    
     const btn = document.createElement('button');
-    btn.id = 'btn-'+id;
     btn.className = 'nav-btn';
     btn.innerHTML = `${folder} <span class="arrow">▾</span>`;
-
-    /* 드롭다운 */
+    btn.dataset.id = idx;
+    
     const dd = document.createElement('div');
-    dd.id = 'dd-'+id;
     dd.className = 'dropdown';
+    dd.id = `dd-${idx}`;
+    
+    // 정적 아이템 추가
+    if (menuData[folder]) {
+      Object.entries(menuData[folder]).forEach(([name, path]) => {
+        const di = document.createElement('div');
+        di.className = 'dd-item';
+        di.textContent = name;
+        di.onclick = (e) => { e.stopPropagation(); closeAllMenus(); loadFile(path, name, folder); };
+        dd.appendChild(di);
+      });
+    }
 
-    /* 버튼 클릭: 수정된 toggleMenu 호출 */
-    btn.addEventListener('click', (e) => {
-      toggleMenu(e, id, folder, dd);
+    // 메뉴 버튼 클릭 이벤트
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const isOpen = btn.classList.contains('open');
+      closeAllMenus();
+      
+      if (!isOpen) {
+        btn.classList.add('open');
+        dd.classList.add('open');
+        openId = idx;
+        
+        // 동적 데이터 로딩
+        if (folder === "자료실(구글드라이브)" && !driveLoaded) await loadDriveList(dd);
+        if (folder === "자료실(옵시디안)" && !obsLoaded) await loadObsidianList(dd);
+      }
     });
 
-    /* dd 내부 클릭 시 닫힘 방지 */
-    dd.addEventListener('click', (e) => e.stopPropagation());
+    itemContainer.appendChild(btn);
+    itemContainer.appendChild(dd);
+    nav.appendChild(itemContainer);
 
-    /* 정적 아이템 */
-    if (items) {
-      for (const [name, path] of Object.entries(items)) {
-        const item = makeDdItem(name, () => {
-          closeAll();
-          document.querySelectorAll('.dd-item').forEach(i=>i.classList.remove('active'));
-          item.classList.add('active');
-          loadFile(path, name, folder);
+    // 모바일 드로어 메뉴
+    const mobileSec = document.createElement('div');
+    mobileSec.innerHTML = `<p style="font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:10px;">${folder}</p>`;
+    if (menuData[folder]) {
+        Object.entries(menuData[folder]).forEach(([name, path]) => {
+            const mi = document.createElement('div');
+            mi.className = 'dd-item';
+            mi.textContent = name;
+            mi.onclick = () => { closeDrawer(); loadFile(path, name, folder); };
+            mobileSec.appendChild(mi);
         });
-        dd.appendChild(item);
-      }
-    }
-
-    const ni = document.createElement('div');
-    ni.className = 'nav-item';
-    ni.appendChild(btn);
-    ni.appendChild(dd);
-    nav.appendChild(ni);
-
-    /* 모바일 드로어 */
-    const sec = document.createElement('div');
-    sec.className = 'drawer-section';
-    const t = document.createElement('div');
-    t.className = 'drawer-section-title';
-    t.textContent = folder;
-    sec.appendChild(t);
-    if (items) {
-      for (const [name, path] of Object.entries(items)) {
-        const di = document.createElement('div');
-        di.className = 'drawer-item';
-        di.textContent = name;
-        di.addEventListener('click', () => { closeDrawer(); loadFile(path, name, folder); });
-        sec.appendChild(di);
-      }
     } else {
-      const di = document.createElement('div');
-      di.className = 'drawer-item';
-      di.textContent = '📂 열기...';
-      di.addEventListener('click', (e) => { closeDrawer(); btn.click(); });
-      sec.appendChild(di);
+        const mi = document.createElement('div');
+        mi.className = 'dd-item';
+        mi.textContent = "📂 목록 열기";
+        mi.onclick = () => { closeDrawer(); btn.click(); };
+        mobileSec.appendChild(mi);
     }
-    drawer.appendChild(sec);
+    drawer.appendChild(mobileSec);
+  });
+}
+
+/* 외부 클릭 시 닫기 */
+document.addEventListener('click', closeAllMenus);
+
+/* 구글 드라이브 리스트 로딩 */
+async function loadDriveList(container) {
+  container.innerHTML = '<div class="dd-item">⏳ 로딩 중...</div>';
+  try {
+    // gapi 로드 체크
+    if (typeof gapi === 'undefined') throw new Error("GAPI 로드 실패");
+    await new Promise(res => gapi.load('client', res));
+    await gapi.client.init({ apiKey: GOOGLE_API_KEY, discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"] });
+    
+    const resp = await gapi.client.drive.files.list({ q: `'${SERVICE_FOLDER_ID}' in parents and trashed=false`, fields: 'files(id, name)' });
+    const files = resp.result.files;
+    container.innerHTML = '';
+    
+    if (files.length === 0) container.innerHTML = '<div class="dd-item">파일 없음</div>';
+    files.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'dd-item';
+      item.textContent = `📄 ${f.name}`;
+      item.onclick = (e) => { e.stopPropagation(); closeAllMenus(); alert(f.name + " 준비 중"); };
+      container.appendChild(item);
+    });
+    driveLoaded = true;
+  } catch (e) {
+    container.innerHTML = `<div class="dd-item" style="color:#ff6b6b">⚠️ 오류: ${e.message}</div>`;
   }
 }
 
-function makeDdItem(text, onClick) {
-  const d = document.createElement('div');
-  d.className = 'dd-item';
-  d.textContent = text;
-  d.addEventListener('click', onClick);
-  return d;
-}
-
-/* ── 구글드라이브 메뉴 ── */
-async function populateServiceMenu(dd) {
-  if (driveLoaded) return; driveLoaded = true;
-  dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
-  try {
-    const files = await fetchDriveFiles(SERVICE_FOLDER_ID);
-    dd.innerHTML = '';
-    if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
-    files.forEach(f => {
-      const item = makeDdItem('📄 '+f.name, async () => {
-        closeAll();
-        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-        try {
-          await initGapi();
-          const res = await gapi.client.drive.files.get({ fileId:f.id, alt:'media' });
-          const text = typeof res.body==='string' ? res.body : JSON.stringify(res.body,null,2);
-          const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${text}</pre>`;
-          recordDownload(f.name, f.id);
-          contentEl.className='content markdown-body';
-          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">⬇️ 다운로드</a>${html}</div>`;
-        } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
-      });
-      dd.appendChild(item);
-    });
-  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">❌ Drive 오류</div>`; }
-}
-
-/* ── 옵시디안 메뉴 ── */
-async function populateObsidianMenu(dd) {
-  if (obsLoaded) return; obsLoaded = true;
-  dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
+/* 옵시디안 리스트 로딩 (로컬 서버 연동) */
+async function loadObsidianList(container) {
+  container.innerHTML = '<div class="dd-item">⏳ 로딩 중...</div>';
   try {
     const r = await fetch('http://localhost:3000/api/obsidian-files');
-    if (!r.ok) throw new Error('서버 연결 실패');
     const files = await r.json();
-    dd.innerHTML = '';
-    if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
-    const grouped = {};
-    files.forEach(f => { const fol=f.folder||'루트'; if(!grouped[fol]) grouped[fol]=[]; grouped[fol].push(f); });
-    Object.keys(grouped).sort().forEach(fol => {
-      const folDiv = document.createElement('div');
-      folDiv.className = 'dd-folder';
-      folDiv.textContent = '📁 '+fol;
-      const list = document.createElement('div');
-      list.style.display = 'none';
-      folDiv.addEventListener('click', (e) => { e.stopPropagation(); list.style.display = list.style.display==='none'?'block':'none'; });
-      dd.appendChild(folDiv);
-      dd.appendChild(list);
-      grouped[fol].forEach(f => {
-        const item = makeDdItem('📄 '+f.name, async () => {
-          closeAll();
-          try {
-            const fr = await fetch(`http://localhost:3000/api/obsidian-file/${encodeURIComponent(f.path)}`);
-            if (!fr.ok) throw new Error('파일 로드 실패');
-            const data = await fr.text();
-            contentEl.className='content markdown-body';
-            contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><button onclick="downloadObsidianFile('${f.path}','${f.name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
-          } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
-        });
-        item.style.paddingLeft='28px';
-        list.appendChild(item);
-      });
+    container.innerHTML = '';
+    files.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'dd-item';
+      item.textContent = `📝 ${f.name}`;
+      item.onclick = (e) => { e.stopPropagation(); closeAllMenus(); };
+      container.appendChild(item);
     });
-  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ 로컬 서버가 꺼져 있습니다</div>`; }
-}
-
-async function downloadObsidianFile(path, name) {
-  try {
-    const r = await fetch(`http://localhost:3000/api/download/${encodeURIComponent(path)}`);
-    if (!r.ok) throw new Error('다운로드 실패');
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download=name;
-    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
-    recordDownload(name, path);
-  } catch(e) { alert(e.message); }
-}
-
-/* ── 파일 로드 ── */
-async function loadFile(filePath, itemName, folder) {
-  contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-  if (filePath==='STATS') { renderStats(folder,itemName); return; }
-  try {
-    const r = await fetch(filePath);
-    if (!r.ok) throw new Error(`파일 없음: ${filePath}`);
-    const md = await r.text();
-    contentEl.className='content markdown-body';
-    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div>${mdToHtml(md)}</div>`;
-  } catch(e) {
-    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><div class="err">❌ ${e.message}</div></div>`;
+    obsLoaded = true;
+  } catch (e) {
+    container.innerHTML = '<div class="dd-item" style="color:#999">⚠️ 로컬 서버 오프라인</div>';
   }
 }
 
-function renderStats(folder, itemName) {
-  const stats = JSON.parse(localStorage.getItem('downloadStats')||'[]');
-  stats.sort((a,b)=>new Date(b.lastDownload)-new Date(a.lastDownload));
-  let html=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><h2>📊 다운로드 통계</h2>`;
-  if (!stats.length) { html+='<p style="margin-top:20px;opacity:.6">기록 없음</p>'; }
-  else {
-    html+='<table style="width:100%;border-collapse:collapse;margin-top:16px"><tr style="background:#f0f0f0"><th style="padding:10px;text-align:left">파일명</th><th style="padding:10px;text-align:center">횟수</th><th style="padding:10px;text-align:left">마지막</th></tr>';
-    stats.forEach(s => { html+=`<tr style="border-bottom:1px solid #eee"><td style="padding:10px">${s.fileName}</td><td style="padding:10px;text-align:center;color:#3498db;font-weight:bold">${s.count}회</td><td style="padding:10px;font-size:12px">${s.lastDownload}</td></tr>`; });
-    html+='</table>';
-  }
-  contentEl.innerHTML=html+'</div>';
+/* 파일 로드 함수 */
+function loadFile(path, name, folder) {
+    const content = document.getElementById('content');
+    if(path === 'STATS') { renderStatsPage(); return; }
+    content.innerHTML = `<div class="markdown-body"><h2>${name}</h2><p>${folder}의 콘텐츠를 불러오는 중...</p></div>`;
 }
 
-/* ── 마크다운 → HTML ── */
-function mdToHtml(md) {
-  return '<p>'+md
-    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,'<em>$1</em>')
-    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank">$1</a>')
-    .replace(/`(.+?)`/g,'<code>$1</code>')
-    .replace(/^- (.+)$/gm,'<li>$1</li>')
-    .replace(/\n\n/g,'</p><p>')+'</p>';
-}
+/* 모바일 제어 */
+const drawer = document.getElementById('mobileDrawer');
+const overlay = document.getElementById('mobileOverlay');
+function openDrawer() { drawer.classList.add('open'); overlay.style.display = 'block'; }
+function closeDrawer() { drawer.classList.remove('open'); overlay.style.display = 'none'; }
 
-/* ── 통계 ── */
-function recordDownload(name, id) {
-  let s = JSON.parse(localStorage.getItem('downloadStats')||'[]');
-  const now = new Date().toLocaleString('ko-KR');
-  const ex = s.find(x=>x.fileId===id);
-  if (ex) { ex.count++; ex.lastDownload=now; }
-  else s.push({ fileId:id, fileName:name, count:1, firstDownload:now, lastDownload:now });
-  localStorage.setItem('downloadStats', JSON.stringify(s));
-  renderDashboard();
-}
+document.getElementById('hamburger-btn').onclick = (e) => { e.stopPropagation(); openDrawer(); };
+document.getElementById('drawer-close-btn').onclick = closeDrawer;
+overlay.onclick = closeDrawer;
 
-async function recordVisit() {
-  let ip='알 수 없음';
-  try { const r=await fetch('https://api.ipify.org?format=json'); ip=(await r.json()).ip; } catch(e){}
-  let v = JSON.parse(localStorage.getItem('visitLog')||'[]');
-  v.unshift({ time:new Date().toLocaleString('ko-KR'), ip });
-  if (v.length>50) v=v.slice(0,50);
-  localStorage.setItem('visitLog', JSON.stringify(v));
-  renderDashboard();
-}
-
-function resetAllStats() {
-  if (!confirm('통계를 초기화하시겠습니까?')) return;
-  localStorage.removeItem('visitLog'); localStorage.removeItem('downloadStats');
-  renderDashboard();
-}
-
+/* 대시보드 통계 */
 function renderDashboard() {
-  const visits = JSON.parse(localStorage.getItem('visitLog')||'[]');
-  const dl     = JSON.parse(localStorage.getItem('downloadStats')||'[]');
-  const total  = dl.reduce((s,d)=>s+d.count,0);
-  document.getElementById('stat-visits').textContent    = visits.length;
-  document.getElementById('stat-downloads').textContent = total;
-  document.getElementById('stat-files').textContent     = dl.length;
-
-  const vl = document.getElementById('visit-log');
-  vl.innerHTML = visits.length ? `<table class="log-table"><thead><tr><th>#</th><th>IP</th><th style="text-align:right">시간</th></tr></thead><tbody>${visits.map((v,i)=>`<tr><td style="color:#bbb">${i+1}</td><td style="color:#1a3a5c;font-weight:600">${v.ip||'-'}</td><td style="text-align:right;color:#999">${v.time||'-'}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="log-empty">접속 기록이 없습니다.</div>';
-
-  const dlog = document.getElementById('download-log');
-  dlog.innerHTML = dl.length ? `<table class="log-table"><thead><tr><th>파일명</th><th style="text-align:center">횟수</th><th style="text-align:right">마지막</th></tr></thead><tbody>${[...dl].sort((a,b)=>b.count-a.count).map(s=>`<tr><td>${s.fileName}</td><td style="text-align:center;font-weight:700;color:#3498db">${s.count}회</td><td style="text-align:right;color:#999">${s.lastDownload}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="log-empty">다운로드 기록이 없습니다.</div>';
+  const visits = JSON.parse(localStorage.getItem('visitLog') || '[]');
+  document.getElementById('stat-visits').textContent = visits.length;
+  const logWrap = document.getElementById('visit-log');
+  logWrap.innerHTML = visits.length ? `<table class="log-table"><tr><th>시간</th><th>IP</th></tr>${visits.slice(0,5).map(v=>`<tr><td>${v.time}</td><td>${v.ip}</td></tr>`).join('')}</table>` : '<p style="padding:10px; color:#999;">기록 없음</p>';
 }
 
-/* ── 모바일 ── */
-function toggleDrawer() {
-  document.getElementById('mobileDrawer').classList.toggle('open');
-  document.getElementById('mobileOverlay').classList.toggle('show');
-}
-function closeDrawer() {
-  document.getElementById('mobileDrawer').classList.remove('open');
-  document.getElementById('mobileOverlay').classList.remove('show');
-}
+function resetAllStats() { if(confirm("초기화할까요?")) { localStorage.clear(); location.reload(); } }
 
-/* ── 초기화 ── */
-renderMenu();
-renderDashboard();
-recordVisit();
+/* 초기화 */
+window.onload = () => {
+  initMenu();
+  renderDashboard();
+  // 방문 기록
+  const log = JSON.parse(localStorage.getItem('visitLog') || '[]');
+  log.unshift({ time: new Date().toLocaleTimeString(), ip: 'Local' });
+  localStorage.setItem('visitLog', JSON.stringify(log.slice(0, 50)));
+};
 </script>
 </body>
 </html>
