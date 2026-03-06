@@ -347,7 +347,50 @@ async function populateServiceMenu(dd) {
     const files = await fetchDriveFiles(SERVICE_FOLDER_ID);
     dd.innerHTML = '';
     if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
+
+    // 전체 확장/축소 컨트롤바
+    const ctrlBar = document.createElement('div');
+    ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
+    const btnExpandG = document.createElement('button');
+    btnExpandG.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v3H2V2zm9 0h3v5h-2V4h-3V2zm-9 9h2v3h3v2H2v-5zm11 3h-3v2h5v-5h-2v3z"/></svg>';
+    btnExpandG.title = '전체 펼치기';
+    btnExpandG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
+    const btnCollapseG = document.createElement('button');
+    btnCollapseG.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 2H2v3h2V3h3V1H5v1zm6-1v2h3v3h2V1h-5zm-6 11H3v-3H1v5h5v-2zm8-3v3h-3v2h5v-5h-2z"/></svg>';
+    btnCollapseG.title = '전체 접기';
+    btnCollapseG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
+    btnExpandG.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>'); });
+    btnCollapseG.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>'); });
+    ctrlBar.appendChild(btnExpandG);
+    ctrlBar.appendChild(btnCollapseG);
+    dd.appendChild(ctrlBar);
+
+    // 파일을 폴더별로 그룹핑
+    const grouped = {};
     files.forEach(f => {
+      const parts = f.name.split('/');
+      const fol = parts.length > 1 ? parts[0] : '파일';
+      const name = parts[parts.length - 1];
+      if (!grouped[fol]) grouped[fol] = [];
+      grouped[fol].push({...f, displayName: name});
+    });
+    Object.keys(grouped).sort().forEach(fol => {
+      const folDiv = document.createElement('div');
+      folDiv.className = 'dd-folder';
+      folDiv.innerHTML = '<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 ' + fol;
+      const list = document.createElement('div');
+      list.className = 'folder-list';
+      list.style.display = 'none';
+      folDiv.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = list.style.display !== 'none';
+        list.style.display = isOpen ? 'none' : 'block';
+        const arrow = folDiv.querySelector('.folder-arrow');
+        if (arrow) arrow.innerHTML = isOpen ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>' : '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>';
+      });
+      dd.appendChild(folDiv);
+      dd.appendChild(list);
+      grouped[fol].forEach(f => {
       const item = makeDdItem('📄 '+f.name, async () => {
         closeAll();
         contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
@@ -361,7 +404,9 @@ async function populateServiceMenu(dd) {
           contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">⬇️ 다운로드</a>${html}</div>`;
         } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
       });
-      dd.appendChild(item);
+        item.style.paddingLeft='28px';
+        list.appendChild(item);
+      });
     });
   } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">❌ Drive 오류</div>`; }
 }
@@ -382,15 +427,15 @@ async function populateObsidianMenu(dd) {
     const ctrlBar = document.createElement('div');
     ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
     const btnExpand = document.createElement('button');
-    btnExpand.innerHTML = '⊞';
+    btnExpand.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v3H2V2zm9 0h3v5h-2V4h-3V2zm-9 9h2v3h3v2H2v-5zm11 3h-3v2h5v-5h-2v3z"/></svg>';
     btnExpand.title = '전체 펼치기';
-    btnExpand.style.cssText = 'background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:14px;';
-    btnExpand.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.textContent='▾'); });
+    btnExpand.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
+    btnExpand.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>'); });
     const btnCollapse = document.createElement('button');
-    btnCollapse.innerHTML = '⊟';
+    btnCollapse.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 2H2v3h2V3h3V1H5v1zm6-1v2h3v3h2V1h-5zm-6 11H3v-3H1v5h5v-2zm8-3v3h-3v2h5v-5h-2z"/></svg>';
     btnCollapse.title = '전체 접기';
-    btnCollapse.style.cssText = 'background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:14px;';
-    btnCollapse.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.textContent='▸'); });
+    btnCollapse.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
+    btnCollapse.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>'); });
     ctrlBar.appendChild(btnExpand);
     ctrlBar.appendChild(btnCollapse);
     dd.appendChild(ctrlBar);
@@ -398,7 +443,7 @@ async function populateObsidianMenu(dd) {
     Object.keys(grouped).sort().forEach(fol => {
       const folDiv = document.createElement('div');
       folDiv.className = 'dd-folder';
-      folDiv.innerHTML = '<span class="folder-arrow" style="margin-right:6px;font-size:10px;">▸</span>📁 '+fol;
+      folDiv.innerHTML = '<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 '+fol;
       const list = document.createElement('div');
       list.className = 'folder-list';
       list.style.display = 'none';
@@ -407,7 +452,7 @@ async function populateObsidianMenu(dd) {
         const open = list.style.display !== 'none';
         list.style.display = open ? 'none' : 'block';
         const arrow = folDiv.querySelector('.folder-arrow');
-        if (arrow) arrow.textContent = open ? '▸' : '▾';
+        if (arrow) arrow.innerHTML = open ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>' : '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>';
       });
       dd.appendChild(folDiv);
       dd.appendChild(list);
