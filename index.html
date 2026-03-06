@@ -514,16 +514,19 @@ function renderDashboard() {
   const visits = JSON.parse(localStorage.getItem('visitLog')||'[]');
   const dl     = JSON.parse(localStorage.getItem('downloadStats')||'[]');
   const total  = dl.reduce((s,d)=>s+d.count,0);
-  document.getElementById('stat-visits').textContent    = visits.length;
-  document.getElementById('stat-downloads').textContent = total;
-  document.getElementById('stat-files').textContent     = dl.length;
+  const sv = document.getElementById('stat-visits');
+  const sd = document.getElementById('stat-downloads');
+  const sf = document.getElementById('stat-files');
+  if (sv) sv.textContent = visits.length;
+  if (sd) sd.textContent = total;
+  if (sf) sf.textContent = dl.length;
 
   const vl = document.getElementById('visit-log');
-  vl.innerHTML = visits.length ? `<table class="log-table"><thead><tr><th>#</th><th>IP</th><th style="text-align:right">시간</th></tr></thead><tbody>${visits.map((v,i)=>`<tr><td style="color:#bbb">${i+1}</td><td style="color:#1a3a5c;font-weight:600">${v.ip||'-'}</td><td style="text-align:right;color:#999">${v.time||'-'}</td></tr>`).join('')}</tbody></table>`
+  if (vl) vl.innerHTML = visits.length ? `<table class="log-table"><thead><tr><th>#</th><th>IP</th><th style="text-align:right">시간</th></tr></thead><tbody>${visits.map((v,i)=>`<tr><td style="color:#bbb">${i+1}</td><td style="color:#1a3a5c;font-weight:600">${v.ip||'-'}</td><td style="text-align:right;color:#999">${v.time||'-'}</td></tr>`).join('')}</tbody></table>`
     : '<div class="log-empty">접속 기록이 없습니다.</div>';
 
   const dlog = document.getElementById('download-log');
-  dlog.innerHTML = dl.length ? `<table class="log-table"><thead><tr><th>파일명</th><th style="text-align:center">횟수</th><th style="text-align:right">마지막</th></tr></thead><tbody>${[...dl].sort((a,b)=>b.count-a.count).map(s=>`<tr><td>${s.fileName}</td><td style="text-align:center;font-weight:700;color:#3498db">${s.count}회</td><td style="text-align:right;color:#999">${s.lastDownload}</td></tr>`).join('')}</tbody></table>`
+  if (dlog) dlog.innerHTML = dl.length ? `<table class="log-table"><thead><tr><th>파일명</th><th style="text-align:center">횟수</th><th style="text-align:right">마지막</th></tr></thead><tbody>${[...dl].sort((a,b)=>b.count-a.count).map(s=>`<tr><td>${s.fileName}</td><td style="text-align:center;font-weight:700;color:#3498db">${s.count}회</td><td style="text-align:right;color:#999">${s.lastDownload}</td></tr>`).join('')}</tbody></table>`
     : '<div class="log-empty">다운로드 기록이 없습니다.</div>';
 }
 
