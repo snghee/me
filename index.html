@@ -109,13 +109,15 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 /* ── 히어로 ── */
 .hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:320px; display:flex; align-items:center; overflow:hidden; }
 .hero-section::before { content:''; position:absolute; top:-60px; right:-60px; width:400px; height:400px; background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%); pointer-events:none; }
-.hero-inner { position:relative; z-index:1; max-width:480px; }
+.hero-inner { position:relative; z-index:2; max-width:480px; }
 .hero-graph {
-  position:absolute; right:0; top:0; bottom:0;
-  width:45%; z-index:1; pointer-events:all;
+  position:absolute; left:50%; top:0; bottom:0;
+  width:50%; z-index:1; pointer-events:all;
+  transform:translateX(-50%);
+  left:0; right:0; width:100%;
+  display:flex; align-items:center; justify-content:center;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
-@media (max-width:900px) { .hero-graph { width:40%; } }
 @media (max-width:768px) { .hero-graph { display:none; } }
 .hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
 .hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
