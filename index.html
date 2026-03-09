@@ -107,9 +107,16 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .drawer-item:hover { background:#3498db; color:white; }
 
 /* ── 히어로 ── */
-.hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:280px; display:flex; align-items:center; overflow:hidden; }
+.hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:320px; display:flex; align-items:center; overflow:hidden; }
 .hero-section::before { content:''; position:absolute; top:-60px; right:-60px; width:400px; height:400px; background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%); pointer-events:none; }
-.hero-inner { position:relative; z-index:1; max-width:800px; }
+.hero-inner { position:relative; z-index:1; max-width:480px; }
+.hero-graph {
+  position:absolute; right:0; top:0; bottom:0;
+  width:45%; z-index:1; pointer-events:all;
+}
+.hero-graph svg { width:100%; height:100%; display:block; }
+@media (max-width:900px) { .hero-graph { width:40%; } }
+@media (max-width:768px) { .hero-graph { display:none; } }
 .hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
 .hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
 .hero-title span { color:#64b5f6; }
@@ -144,9 +151,9 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-node { cursor:pointer; }
 .graph-node circle { stroke-width:1.5; transition:r .2s; }
 .graph-node:hover circle { r:7; }
-.graph-node text { font-size:10px; fill:#ccc; pointer-events:none; }
-.graph-link { stroke:#3a4a6a; stroke-opacity:0.5; stroke-width:1; }
-.graph-controls { position:absolute; top:8px; right:8px; display:flex; gap:4px; }
+.graph-node text { font-size:9px; fill:rgba(255,255,255,0.7); pointer-events:none; }
+.graph-link { stroke:rgba(100,181,246,0.3); stroke-opacity:1; stroke-width:1; }
+.graph-controls { position:absolute; bottom:8px; right:8px; display:flex; gap:4px; z-index:10; }
 .graph-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
 .graph-btn:hover { background:rgba(255,255,255,0.2); }
 .graph-tooltip { position:fixed; background:rgba(0,0,0,0.8); color:white; padding:4px 8px; border-radius:4px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
@@ -190,12 +197,15 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
         <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
         <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
       </div>
-      <div class="hero-deco">
-        <div class="hero-deco-line" style="width:180px"></div>
-        <div class="hero-deco-line" style="width:120px"></div>
-        <div class="hero-deco-line" style="width:150px"></div>
-        <div class="hero-deco-line" style="width:90px"></div>
-        <div class="hero-deco-line" style="width:160px"></div>
+      <!-- 히어로 그래프 -->
+      <div class="hero-graph" id="graph-wrap">
+        <svg id="obs-graph"></svg>
+        <div class="graph-tooltip" id="graph-tooltip"></div>
+        <div class="graph-controls">
+          <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
+          <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
+          <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
+        </div>
       </div>
     </div>
     <div class="stats-bar">
@@ -223,23 +233,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   </div>
 </div>
 </div><!-- content-area -->
-
-<!-- 옵시디안 그래프 사이드바 -->
-<div class="sidebar">
-  <div class="sidebar-header">
-    <span class="sidebar-header-title">🔗 옵시디안 그래프</span>
-    <div style="display:flex;gap:4px;">
-      <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
-      <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
-      <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
-    </div>
-  </div>
-  <div class="sidebar-graph" id="graph-wrap">
-    <svg id="obs-graph"></svg>
-    <div class="graph-tooltip" id="graph-tooltip"></div>
-  </div>
-</div>
-
 </div><!-- main-layout -->
 
 <script>
@@ -688,7 +681,9 @@ function drawGraph(svgEl, nodes, links) {
 
   // 폴더별 색상
   const folders = [...new Set(nodes.map(n => n.folder))];
-  const colors  = d3.scaleOrdinal(d3.schemeTableau10).domain(folders);
+  // 히어로 네이비 배경에 어울리는 밝은 색상 팔레트
+  const palette = ['#64b5f6','#81c784','#ffb74d','#f06292','#ce93d8','#4dd0e1','#fff176','#a5d6a7'];
+  const colors  = d3.scaleOrdinal(palette).domain(folders);
 
   const svg = d3.select(svgEl)
     .attr('width', W).attr('height', H);
@@ -745,7 +740,7 @@ function drawGraph(svgEl, nodes, links) {
   node.append('circle')
     .attr('r',    d => Math.min(5 + (linkCount[d.id]||0) * 1.5, 14))
     .attr('fill', d => colors(d.folder))
-    .attr('stroke', d => d3.color(colors(d.folder)).darker(0.5));
+    .attr('stroke', d => d3.color(colors(d.folder))?.darker(0.8) || '#fff');
 
   node.append('text')
     .attr('x', 0).attr('y', d => Math.min(5 + (linkCount[d.id]||0)*1.5, 14) + 10)
