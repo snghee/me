@@ -571,7 +571,7 @@ async function populateObsidianMenu(dd) {
         list.appendChild(item);
       });
     });
-  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ 로컬 서버가 꺼져 있습니다</div>`; }
+  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ GitHub 로드 실패: ${e.message}</div>`; }
 }
 
 async function downloadObsidianFile(filePath, name) {
