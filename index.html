@@ -255,44 +255,25 @@ const GOOGLE_API_KEY    = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
 const CLIENT_ID         = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
 const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
 
-// GitHub API 설정
-const GITHUB_TOKEN = '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';
-const GITHUB_OWNER = 'snghee';
-const GITHUB_REPO  = 'Obsidian';
+// GitHub 설정 (Public 저장소 - 토큰 불필요)
+const GITHUB_OWNER  = 'snghee';
+const GITHUB_REPO   = 'Obsidian';
 const GITHUB_BRANCH = 'main';
-const GITHUB_API   = 'https://api.github.com';
-
-const GH_HEADERS = {
-  'Authorization': `token ${GITHUB_TOKEN}`,
-  'Accept': 'application/vnd.github.v3+json'
-};
+const GITHUB_API    = 'https://api.github.com';
 
 // GitHub API 헬퍼
 async function ghGetTree() {
   const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`,
-    { headers: GH_HEADERS }
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`
   );
   if (!r.ok) throw new Error('GitHub 트리 로드 실패');
   const data = await r.json();
   return data.tree.filter(f => f.type === 'blob' && f.path.endsWith('.md'));
 }
 
-async function ghGetFile(path) {
-  const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(path)}?ref=${GITHUB_BRANCH}`,
-    { headers: GH_HEADERS }
-  );
-  if (!r.ok) throw new Error(`파일 로드 실패: ${path}`);
-  const data = await r.json();
-  // base64 디코딩
-  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
-}
-
 async function ghGetRawFile(path) {
   const r = await fetch(
-    `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(path)}`,
-    { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } }
+    `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${path}`
   );
   if (!r.ok) throw new Error(`파일 로드 실패: ${path}`);
   return await r.text();
@@ -577,8 +558,7 @@ async function populateObsidianMenu(dd) {
 async function downloadObsidianFile(filePath, name) {
   try {
     const r = await fetch(
-      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}`,
-      { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } }
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${filePath}`
     );
     if (!r.ok) throw new Error('다운로드 실패');
     const blob = await r.blob();
