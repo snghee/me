@@ -255,10 +255,48 @@ const GOOGLE_API_KEY    = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
 const CLIENT_ID         = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
 const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
 
-// PC: localhost:3000 / 스마트폰: 192.168.50.49:3000 자동 감지
-const SERVER_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'http://localhost:3000'
-  : 'http://192.168.50.49:3000';
+// GitHub API 설정
+const GITHUB_TOKEN = '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';
+const GITHUB_OWNER = 'snghee';
+const GITHUB_REPO  = 'Obsidian';
+const GITHUB_BRANCH = 'main';
+const GITHUB_API   = 'https://api.github.com';
+
+const GH_HEADERS = {
+  'Authorization': `token ${GITHUB_TOKEN}`,
+  'Accept': 'application/vnd.github.v3+json'
+};
+
+// GitHub API 헬퍼
+async function ghGetTree() {
+  const r = await fetch(
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`,
+    { headers: GH_HEADERS }
+  );
+  if (!r.ok) throw new Error('GitHub 트리 로드 실패');
+  const data = await r.json();
+  return data.tree.filter(f => f.type === 'blob' && f.path.endsWith('.md'));
+}
+
+async function ghGetFile(path) {
+  const r = await fetch(
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(path)}?ref=${GITHUB_BRANCH}`,
+    { headers: GH_HEADERS }
+  );
+  if (!r.ok) throw new Error(`파일 로드 실패: ${path}`);
+  const data = await r.json();
+  // base64 디코딩
+  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+}
+
+async function ghGetRawFile(path) {
+  const r = await fetch(
+    `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(path)}`,
+    { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } }
+  );
+  if (!r.ok) throw new Error(`파일 로드 실패: ${path}`);
+  return await r.text();
+}
 
 const menuData = {
   "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
@@ -471,11 +509,17 @@ async function populateServiceMenu(dd) {
 
 /* ── 옵시디안 메뉴 ── */
 async function populateObsidianMenu(dd) {
-  dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
+  dd.innerHTML = '<div class="dd-item">⏳ GitHub에서 불러오는 중...</div>';
   try {
-    const r = await fetch(`${SERVER_BASE}/api/obsidian-files`);
-    if (!r.ok) throw new Error('서버 연결 실패');
-    const files = await r.json();
+    const tree = await ghGetTree();
+    const files = tree
+      .filter(f => !f.path.startsWith('.'))
+      .map(f => {
+        const parts = f.path.split('/');
+        const name = parts[parts.length-1].replace(/\.md$/, '');
+        const folder = parts.length > 1 ? parts.slice(0,-1).join('/') : '루트';
+        return { name, path: f.path, folder };
+      });
     dd.innerHTML = '';
     if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
     const grouped = {};
@@ -518,9 +562,7 @@ async function populateObsidianMenu(dd) {
         const item = makeDdItem('📄 '+f.name, async () => {
           closeAll();
           try {
-            const fr = await fetch(`${SERVER_BASE}/api/obsidian-file?path=${encodeURIComponent(f.path)}`);
-            if (!fr.ok) throw new Error('파일 로드 실패');
-            const data = await fr.text();
+            const data = await ghGetRawFile(f.path);
             contentEl.className='content markdown-body';
             contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><button onclick="downloadObsidianFile('${f.path}','${f.name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
           } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
@@ -532,15 +574,18 @@ async function populateObsidianMenu(dd) {
   } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ 로컬 서버가 꺼져 있습니다</div>`; }
 }
 
-async function downloadObsidianFile(path, name) {
+async function downloadObsidianFile(filePath, name) {
   try {
-    const r = await fetch(`${SERVER_BASE}/api/download/${encodeURIComponent(path)}`);
+    const r = await fetch(
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}`,
+      { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } }
+    );
     if (!r.ok) throw new Error('다운로드 실패');
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download=name;
+    const a = document.createElement('a'); a.href=url; a.download=name+'.md';
     document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
-    recordDownload(name, path);
+    recordDownload(name, filePath);
   } catch(e) { alert(e.message); }
 }
 
