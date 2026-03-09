@@ -9,6 +9,27 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
 
+/* ── 메인 레이아웃 (콘텐츠 + 사이드바) ── */
+.main-layout { display:flex; flex:1; overflow:hidden; }
+.content-area { flex:1; overflow-y:auto; min-width:0; }
+.sidebar {
+  width:320px; flex-shrink:0;
+  background:#1a1a2e; border-left:1px solid #2a2a4a;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.sidebar-header {
+  padding:12px 16px; background:#16213e;
+  border-bottom:1px solid #2a2a4a;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sidebar-header-title { color:#64b5f6; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+.sidebar-graph { flex:1; position:relative; overflow:hidden; }
+.sidebar-graph svg { width:100%; height:100%; display:block; }
+.graph-wrap { height:100%; }
+@media (max-width:1024px) { .sidebar { width:260px; } }
+@media (max-width:768px)  { .sidebar { display:none; } }
+
 /* ── 네비게이션 ── */
 .navbar {
   background:#2c3e50; color:white;
@@ -63,8 +84,9 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 }
 
 /* ── 콘텐츠 ── */
-.content { flex:1; overflow-y:auto; background:white; }
+.content { overflow-y:auto; background:white; }
 .content.markdown-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#24292e; }
+.content-area { background:white; }
 .file-inner { padding:32px 60px; }
 .breadcrumb { font-size:12px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
 .loading { text-align:center; padding:40px; color:#999; }
@@ -158,6 +180,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   <div id="mobile-drawer-content"></div>
 </div>
 
+<div class="main-layout">
+<div class="content-area">
 <div class="content markdown-body" id="content">
   <div id="dashboard">
     <div class="hero-section">
@@ -185,18 +209,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
     </div>
     <div class="main-content">
 
-      <!-- 옵시디안 그래프 -->
-      <div class="section-title">옵시디안 노트 그래프</div>
-      <div class="graph-wrap" id="graph-wrap">
-        <svg id="obs-graph"></svg>
-        <div class="graph-controls">
-          <button class="graph-btn" onclick="zoomIn()">＋</button>
-          <button class="graph-btn" onclick="zoomOut()">－</button>
-          <button class="graph-btn" onclick="resetZoom()">⟳</button>
-        </div>
-        <div class="graph-tooltip" id="graph-tooltip"></div>
-      </div>
-
       <div class="two-col">
         <div>
           <div class="section-title">최근 접속 기록</div>
@@ -210,6 +222,25 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
     </div>
   </div>
 </div>
+</div><!-- content-area -->
+
+<!-- 옵시디안 그래프 사이드바 -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-header-title">🔗 옵시디안 그래프</span>
+    <div style="display:flex;gap:4px;">
+      <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
+      <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
+      <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
+    </div>
+  </div>
+  <div class="sidebar-graph" id="graph-wrap">
+    <svg id="obs-graph"></svg>
+    <div class="graph-tooltip" id="graph-tooltip"></div>
+  </div>
+</div>
+
+</div><!-- main-layout -->
 
 <script>
 /* gapi는 나중에 비동기 로드 - 없어도 메뉴는 동작 */
@@ -651,8 +682,8 @@ async function initObsidianGraph() {
 }
 
 function drawGraph(svgEl, nodes, links) {
-  const W = svgEl.getBoundingClientRect().width || 600;
-  const H = 340;
+  const W = svgEl.getBoundingClientRect().width || 300;
+  const H = svgEl.getBoundingClientRect().height || window.innerHeight - 120;
   const tooltip = document.getElementById('graph-tooltip');
 
   // 폴더별 색상
