@@ -105,6 +105,11 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .drawer-section-title { padding:8px 20px 4px; font-size:11px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.5px; }
 .drawer-item { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); }
 .drawer-item:hover { background:#3498db; color:white; }
+.drawer-folder { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); display:flex; align-items:center; gap:8px; }
+.drawer-folder:hover { background:rgba(255,255,255,.08); }
+.drawer-folder-list { display:none; }
+.drawer-folder-list .drawer-item { padding-left:40px; font-size:13px; }
+.drawer-loading { padding:10px 24px; font-size:13px; color:rgba(255,255,255,.4); }
 
 /* ── 히어로 ── */
 .hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:320px; display:flex; align-items:center; overflow:hidden; }
@@ -397,11 +402,85 @@ function renderMenu() {
         sec.appendChild(di);
       }
     } else {
-      const di = document.createElement('div');
-      di.className = 'drawer-item';
-      di.textContent = '📂 열기...';
-      di.addEventListener('click', () => { closeDrawer(); btn.click(); });
-      sec.appendChild(di);
+      // 동적 메뉴 (구글드라이브 / 옵시디안) - 드로어 안에서 직접 로드
+      const loadBtn = document.createElement('div');
+      loadBtn.className = 'drawer-folder';
+      loadBtn.innerHTML = '<span>📂</span><span>탭하여 펼치기</span><span style="margin-left:auto">▸</span>';
+      const subList = document.createElement('div');
+      subList.className = 'drawer-folder-list';
+      let loaded = false;
+      loadBtn.addEventListener('click', async () => {
+        const isOpen = subList.style.display === 'block';
+        if (isOpen) {
+          subList.style.display = 'none';
+          loadBtn.querySelector('span:last-child').textContent = '▸';
+          return;
+        }
+        subList.style.display = 'block';
+        loadBtn.querySelector('span:last-child').textContent = '▾';
+        if (!loaded) {
+          loaded = true;
+          subList.innerHTML = '<div class="drawer-loading">⏳ 불러오는 중...</div>';
+          try {
+            if (folder === '자료실(구글드라이브)') {
+              await populateServiceMenu(dd);
+              subList.innerHTML = '';
+              dd.querySelectorAll('.dd-item, .dd-folder').forEach(el => {
+                const item = document.createElement('div');
+                item.className = 'drawer-item';
+                item.textContent = el.textContent;
+                item.addEventListener('click', () => { closeDrawer(); el.click(); });
+                subList.appendChild(item);
+              });
+            } else if (folder === '자료실(옵시디안)') {
+              const tree = await ghGetTree();
+              const files = tree.filter(f => !f.path.startsWith('.')).map(f => {
+                const parts = f.path.split('/');
+                return { name: parts[parts.length-1].replace(/\.md$/, ''), path: f.path, folder: parts.length>1?parts.slice(0,-1).join('/'):'루트' };
+              });
+              subList.innerHTML = '';
+              // 폴더별 그룹핑
+              const grouped = {};
+              files.forEach(f => { if(!grouped[f.folder]) grouped[f.folder]=[]; grouped[f.folder].push(f); });
+              Object.keys(grouped).sort().forEach(fol => {
+                const folBtn = document.createElement('div');
+                folBtn.className = 'drawer-folder';
+                folBtn.style.paddingLeft = '32px';
+                const folList = document.createElement('div');
+                folList.className = 'drawer-folder-list';
+                folBtn.innerHTML = `<span>📁</span><span>${fol}</span><span style="margin-left:auto">▸</span>`;
+                folBtn.addEventListener('click', () => {
+                  const open = folList.style.display === 'block';
+                  folList.style.display = open ? 'none' : 'block';
+                  folBtn.querySelector('span:last-child').textContent = open ? '▸' : '▾';
+                });
+                grouped[fol].forEach(f => {
+                  const fi = document.createElement('div');
+                  fi.className = 'drawer-item';
+                  fi.style.paddingLeft = '52px';
+                  fi.textContent = '📄 ' + f.name;
+                  fi.addEventListener('click', async () => {
+                    closeDrawer();
+                    contentEl.className='content markdown-body';
+                    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+                    try {
+                      const data = await ghGetRawFile(f.path);
+                      contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><button onclick="downloadObsidianFile('${f.path}','${f.name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
+                    } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
+                  });
+                  folList.appendChild(fi);
+                });
+                subList.appendChild(folBtn);
+                subList.appendChild(folList);
+              });
+            }
+          } catch(e) {
+            subList.innerHTML = `<div class="drawer-loading">❌ ${e.message}</div>`;
+          }
+        }
+      });
+      sec.appendChild(loadBtn);
+      sec.appendChild(subList);
     }
     drawer.appendChild(sec);
   }
