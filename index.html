@@ -111,10 +111,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .hero-section::before { content:''; position:absolute; top:-60px; right:-60px; width:400px; height:400px; background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%); pointer-events:none; }
 .hero-inner { position:relative; z-index:2; max-width:480px; }
 .hero-graph {
-  position:absolute; left:50%; top:0; bottom:0;
-  width:50%; z-index:1; pointer-events:all;
-  transform:translateX(-50%);
-  left:0; right:0; width:100%;
+  position:absolute; inset:0;
+  z-index:1; pointer-events:all;
   display:flex; align-items:center; justify-content:center;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
@@ -723,8 +721,9 @@ async function initObsidianGraph() {
 }
 
 function drawGraph(svgEl, nodes, links) {
-  const W = svgEl.getBoundingClientRect().width || 300;
-  const H = svgEl.getBoundingClientRect().height || window.innerHeight - 120;
+  const rect = svgEl.getBoundingClientRect();
+  const W = rect.width  || svgEl.parentElement.offsetWidth  || 800;
+  const H = rect.height || svgEl.parentElement.offsetHeight || 320;
   const tooltip = document.getElementById('graph-tooltip');
 
   // 폴더별 색상
