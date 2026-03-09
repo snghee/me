@@ -116,6 +116,19 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .log-empty { padding:20px; text-align:center; color:#bbb; font-size:12px; }
 .two-col { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
 
+/* ── 옵시디안 그래프 ── */
+.graph-wrap { border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-bottom:28px; background:#1a1a2e; position:relative; }
+.graph-wrap svg { display:block; width:100%; height:340px; }
+.graph-node { cursor:pointer; }
+.graph-node circle { stroke-width:1.5; transition:r .2s; }
+.graph-node:hover circle { r:7; }
+.graph-node text { font-size:10px; fill:#ccc; pointer-events:none; }
+.graph-link { stroke:#3a4a6a; stroke-opacity:0.5; stroke-width:1; }
+.graph-controls { position:absolute; top:8px; right:8px; display:flex; gap:4px; }
+.graph-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
+.graph-btn:hover { background:rgba(255,255,255,0.2); }
+.graph-tooltip { position:fixed; background:rgba(0,0,0,0.8); color:white; padding:4px 8px; border-radius:4px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
+
 @media (max-width:768px) {
   .navbar-menu { display:none; }
   .hamburger { display:block; }
@@ -129,6 +142,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   .file-inner { padding:20px 16px; }
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 </head>
 <body>
 
@@ -170,6 +184,19 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <button class="stats-bar-reset" onclick="resetAllStats()">🗑️ 초기화</button>
     </div>
     <div class="main-content">
+
+      <!-- 옵시디안 그래프 -->
+      <div class="section-title">옵시디안 노트 그래프</div>
+      <div class="graph-wrap" id="graph-wrap">
+        <svg id="obs-graph"></svg>
+        <div class="graph-controls">
+          <button class="graph-btn" onclick="zoomIn()">＋</button>
+          <button class="graph-btn" onclick="zoomOut()">－</button>
+          <button class="graph-btn" onclick="resetZoom()">⟳</button>
+        </div>
+        <div class="graph-tooltip" id="graph-tooltip"></div>
+      </div>
+
       <div class="two-col">
         <div>
           <div class="section-title">최근 접속 기록</div>
@@ -594,6 +621,132 @@ function closeDrawer() {
 renderMenu();
 renderDashboard();
 recordVisit();
+initObsidianGraph();
+
+/* ── 옵시디안 그래프 ── */
+let graphZoom = null, graphSvg = null;
+
+async function initObsidianGraph() {
+  const wrap = document.getElementById('graph-wrap');
+  const svg  = document.getElementById('obs-graph');
+  if (!svg || !wrap) return;
+
+  // 로딩 표시
+  svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#666" font-size="13" dy=".3em">⏳ 그래프 로딩 중...</text>';
+
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/obsidian-graph`);
+    if (!r.ok) throw new Error('서버 연결 실패');
+    const data = await r.json();
+
+    if (!data.nodes || data.nodes.length === 0) {
+      svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#666" font-size="13" dy=".3em">노트가 없습니다</text>';
+      return;
+    }
+
+    drawGraph(svg, data.nodes, data.links);
+  } catch(e) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e74c3c" font-size="12" dy=".3em">⚠️ 로컬 서버 연결 필요 (server.js 실행)</text>`;
+  }
+}
+
+function drawGraph(svgEl, nodes, links) {
+  const W = svgEl.getBoundingClientRect().width || 600;
+  const H = 340;
+  const tooltip = document.getElementById('graph-tooltip');
+
+  // 폴더별 색상
+  const folders = [...new Set(nodes.map(n => n.folder))];
+  const colors  = d3.scaleOrdinal(d3.schemeTableau10).domain(folders);
+
+  const svg = d3.select(svgEl)
+    .attr('width', W).attr('height', H);
+  svg.selectAll('*').remove();
+
+  // zoom
+  graphZoom = d3.zoom().scaleExtent([0.2, 4])
+    .on('zoom', (e) => g.attr('transform', e.transform));
+  svg.call(graphZoom);
+
+  const g = svg.append('g');
+
+  // 시뮬레이션
+  const sim = d3.forceSimulation(nodes)
+    .force('link',   d3.forceLink(links).id(d => d.id).distance(60))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide(14));
+
+  // 링크
+  const link = g.append('g').selectAll('line')
+    .data(links).join('line').attr('class', 'graph-link');
+
+  // 노드
+  const node = g.append('g').selectAll('g')
+    .data(nodes).join('g')
+    .attr('class', 'graph-node')
+    .call(d3.drag()
+      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+    )
+    .on('mouseover', (e,d) => {
+      tooltip.style.display='block';
+      tooltip.textContent = `${d.name} (${d.folder})`;
+    })
+    .on('mousemove', (e) => {
+      tooltip.style.left = (e.clientX+12)+'px';
+      tooltip.style.top  = (e.clientY-28)+'px';
+    })
+    .on('mouseout', () => { tooltip.style.display='none'; })
+    .on('click', (e,d) => {
+      // 클릭 시 파일 열기
+      loadObsidianFileByPath(d.path, d.name, d.folder);
+    });
+
+  // 연결 수에 따라 반지름 조절
+  const linkCount = {};
+  links.forEach(l => {
+    linkCount[l.source.id||l.source] = (linkCount[l.source.id||l.source]||0)+1;
+    linkCount[l.target.id||l.target] = (linkCount[l.target.id||l.target]||0)+1;
+  });
+
+  node.append('circle')
+    .attr('r',    d => Math.min(5 + (linkCount[d.id]||0) * 1.5, 14))
+    .attr('fill', d => colors(d.folder))
+    .attr('stroke', d => d3.color(colors(d.folder)).darker(0.5));
+
+  node.append('text')
+    .attr('x', 0).attr('y', d => Math.min(5 + (linkCount[d.id]||0)*1.5, 14) + 10)
+    .attr('text-anchor', 'middle')
+    .text(d => d.name.length > 12 ? d.name.slice(0,12)+'…' : d.name);
+
+  sim.on('tick', () => {
+    link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
+        .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    node.attr('transform', d=>`translate(${d.x},${d.y})`);
+  });
+
+  graphSvg = svg;
+}
+
+async function loadObsidianFileByPath(filePath, name, folder) {
+  contentEl.className='content markdown-body';
+  contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+  try {
+    const r = await fetch(`${SERVER_BASE}/api/obsidian-file?path=${encodeURIComponent(filePath)}`);
+    if (!r.ok) throw new Error('파일 로드 실패');
+    const data = await r.json();
+    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><h2 style="margin-bottom:20px">${name}</h2><button onclick="downloadObsidianFile('${filePath}','${name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data.content)}</div>`;
+  } catch(e) {
+    contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`;
+  }
+}
+
+function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.scaleBy, 1.4); }
+function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.scaleBy, 0.7); }
+function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.transform, d3.zoomIdentity); }
+
 </script>
 </body>
 </html>
