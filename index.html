@@ -112,16 +112,32 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .drawer-loading { padding:10px 24px; font-size:13px; color:rgba(255,255,255,.4); }
 
 /* ── 히어로 ── */
-.hero-section { position:relative; background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%); color:white; padding:64px 60px 48px; min-height:320px; display:flex; align-items:center; overflow:hidden; }
-.hero-section::before { content:''; position:absolute; top:-60px; right:-60px; width:400px; height:400px; background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%); pointer-events:none; }
-.hero-inner { position:relative; z-index:2; max-width:480px; }
+.hero-section {
+  position:relative;
+  background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%);
+  color:white;
+  height:calc(100vh - 56px);
+  display:flex; align-items:stretch;
+  overflow:hidden;
+}
+.hero-inner {
+  position:absolute; bottom:40px; left:60px;
+  z-index:2; max-width:480px;
+  background:rgba(10,35,66,0.6);
+  backdrop-filter:blur(4px);
+  padding:20px 28px; border-radius:12px;
+  border:1px solid rgba(255,255,255,0.1);
+}
 .hero-graph {
   position:absolute; inset:0;
   z-index:1; pointer-events:all;
   display:flex; align-items:center; justify-content:center;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
-@media (max-width:768px) { .hero-graph { display:none; } }
+@media (max-width:768px) {
+  .hero-section { height:60vh; }
+  .hero-inner { left:20px; bottom:20px; padding:14px 18px; max-width:calc(100% - 40px); }
+}
 .hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
 .hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
 .hero-title span { color:#64b5f6; }
@@ -163,25 +179,42 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-btn:hover { background:rgba(255,255,255,0.2); }
 .graph-tooltip { position:fixed; background:rgba(0,0,0,0.8); color:white; padding:4px 8px; border-radius:4px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
 
+/* ── 히어로 풀스크린 그래프 ── */
+.hero-graph { opacity:0; transition:opacity 1s ease; }
+.hero-graph.loaded { opacity:1; }
+
+/* ── 통계 패널 (소개 메뉴 하단) ── */
+.stats-panel { background:#f8fafc; border:1px solid #e8edf2; border-radius:8px; padding:20px; margin-top:28px; }
+.stats-panel-title { font-size:13px; font-weight:700; color:#64748b; letter-spacing:1px; text-transform:uppercase; margin-bottom:16px; }
+.stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+.stats-card { background:white; border:1px solid #e8edf2; border-radius:8px; padding:14px; text-align:center; }
+.stats-card-num { font-size:28px; font-weight:800; color:#3498db; }
+.stats-card-label { font-size:11px; color:#94a3b8; margin-top:4px; }
+.stats-log-wrap { background:white; border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-top:12px; }
+.stats-log-title { padding:10px 14px; font-size:12px; font-weight:700; color:#64748b; background:#f8fafc; border-bottom:1px solid #e8edf2; display:flex; justify-content:space-between; align-items:center; }
+.stats-reset-btn { background:none; border:1px solid #e2e8f0; border-radius:4px; padding:3px 8px; font-size:11px; color:#94a3b8; cursor:pointer; }
+.stats-reset-btn:hover { background:#fee2e2; color:#ef4444; border-color:#fca5a5; }
+
 @media (max-width:768px) {
   .navbar-menu { display:none; }
   .hamburger { display:block; }
-  .hero-section { padding:40px 20px 36px; min-height:auto; }
+  .hero-section { padding:40px 20px 36px; min-height:60vh !important; }
   .hero-deco { display:none; }
   .hero-title { font-size:24px; }
-  .stats-bar { padding:12px 20px; gap:16px; flex-wrap:wrap; }
-  .stats-bar-items { gap:16px; flex-wrap:wrap; }
   .main-content { padding:24px 20px; }
   .two-col { grid-template-columns:1fr; }
   .file-inner { padding:20px 16px; }
+  .stats-grid { grid-template-columns:repeat(3,1fr); gap:8px; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 </head>
 <body>
 
-<nav class="navbar">
-  <div class="navbar-brand">🏦 SBJ DNX</div>
+<nav class="navbar" id="navbar"
+  onmouseenter="showGraph()"
+  onmouseleave="hideGraph()">
+  <div class="navbar-brand" onclick="showDashboard()" style="cursor:pointer">🏦 SBJ DNX</div>
   <div class="navbar-menu" id="navbar-menu"></div>
   <button class="hamburger" onclick="toggleDrawer()">☰</button>
 </nav>
@@ -213,28 +246,12 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
         </div>
       </div>
     </div>
-    <div class="stats-bar">
-      <span class="stats-bar-label">통계</span>
-      <div class="stats-bar-items">
-        <div class="stats-bar-item">👁️ 접속 <span class="stats-bar-num" id="stat-visits">0</span></div>
-        <div class="stats-bar-item">⬇️ 다운로드 <span class="stats-bar-num" id="stat-downloads">0</span></div>
-        <div class="stats-bar-item">📄 파일 수 <span class="stats-bar-num" id="stat-files">0</span></div>
-      </div>
-      <button class="stats-bar-reset" onclick="resetAllStats()">🗑️ 초기화</button>
-    </div>
-    <div class="main-content">
-
-      <div class="two-col">
-        <div>
-          <div class="section-title">최근 접속 기록</div>
-          <div class="log-table-wrap"><div class="log-scroll" id="visit-log"><div class="log-empty">접속 기록이 없습니다.</div></div></div>
-        </div>
-        <div>
-          <div class="section-title">파일 다운로드 통계</div>
-          <div class="log-table-wrap"><div class="log-scroll" id="download-log"><div class="log-empty">다운로드 기록이 없습니다.</div></div></div>
-        </div>
-      </div>
-    </div>
+    <!-- 통계/로그는 숨겨진 상태로 유지 (소개 메뉴에서 표시) -->
+    <div id="stat-visits" style="display:none">0</div>
+    <div id="stat-downloads" style="display:none">0</div>
+    <div id="stat-files" style="display:none">0</div>
+    <div id="visit-log" style="display:none"></div>
+    <div id="download-log" style="display:none"></div>
   </div>
 </div>
 </div><!-- content-area -->
@@ -283,7 +300,7 @@ async function ghGetRawFile(path) {
 }
 
 const menuData = {
-  "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md" },
+  "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md", "📊 접속 통계":"INTRO_STATS" },
   "자료실(구글드라이브)": null,
   "자료실(옵시디안)":    null,
   "문서":              { "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
@@ -325,6 +342,41 @@ function closeAll() {
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.nav-item')) closeAll();
 });
+
+// navbar hover 시 그래프 화면으로 복귀
+document.getElementById('navbar-menu').addEventListener('mouseenter', () => {
+  const dash = document.getElementById('dashboard');
+  if (!dash) {
+    // 파일 뷰 → 대시보드(그래프)로 복귀
+    contentEl.className = 'content markdown-body';
+    contentEl.innerHTML = document.getElementById('_dashboard_cache')?.innerHTML || '';
+    showDashboard();
+  }
+});
+
+function showDashboard() {
+  contentEl.className = 'content markdown-body';
+  contentEl.innerHTML = `
+  <div id="dashboard">
+    <div class="hero-section">
+      <div class="hero-inner">
+        <div class="hero-tag">Internal Document Portal</div>
+        <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
+        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
+      </div>
+      <div class="hero-graph" id="graph-wrap">
+        <svg id="obs-graph"></svg>
+        <div class="graph-tooltip" id="graph-tooltip"></div>
+        <div class="graph-controls">
+          <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
+          <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
+          <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  initObsidianGraph();
+}
 
 /* ── 메뉴 생성 ── */
 function renderMenu() {
@@ -648,8 +700,12 @@ async function downloadObsidianFile(filePath, name) {
 
 /* ── 파일 로드 ── */
 async function loadFile(filePath, itemName, folder) {
+  // 대시보드 숨기고 파일 모드로 전환
+  const dash = document.getElementById('dashboard');
+  if (dash) dash.style.display = 'none';
   contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-  if (filePath==='STATS') { renderStats(folder,itemName); return; }
+  if (filePath==='STATS')       { renderStats(folder,itemName); return; }
+  if (filePath==='INTRO_STATS') { renderIntroStats(); return; }
   try {
     const r = await fetch(filePath);
     if (!r.ok) throw new Error(`파일 없음: ${filePath}`);
@@ -662,16 +718,44 @@ async function loadFile(filePath, itemName, folder) {
 }
 
 function renderStats(folder, itemName) {
-  const stats = JSON.parse(localStorage.getItem('downloadStats')||'[]');
-  stats.sort((a,b)=>new Date(b.lastDownload)-new Date(a.lastDownload));
-  let html=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><h2>📊 다운로드 통계</h2>`;
-  if (!stats.length) { html+='<p style="margin-top:20px;opacity:.6">기록 없음</p>'; }
-  else {
-    html+='<table style="width:100%;border-collapse:collapse;margin-top:16px"><tr style="background:#f0f0f0"><th style="padding:10px;text-align:left">파일명</th><th style="padding:10px;text-align:center">횟수</th><th style="padding:10px;text-align:left">마지막</th></tr>';
-    stats.forEach(s => { html+=`<tr style="border-bottom:1px solid #eee"><td style="padding:10px">${s.fileName}</td><td style="padding:10px;text-align:center;color:#3498db;font-weight:bold">${s.count}회</td><td style="padding:10px;font-size:12px">${s.lastDownload}</td></tr>`; });
-    html+='</table>';
-  }
-  contentEl.innerHTML=html+'</div>';
+  const dlStats = JSON.parse(localStorage.getItem('downloadStats')||'[]');
+  const visits  = JSON.parse(localStorage.getItem('visitLog')||'[]');
+  dlStats.sort((a,b)=>new Date(b.lastDownload)-new Date(a.lastDownload));
+
+  let dlRows = dlStats.length
+    ? dlStats.map(s=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px">${s.fileName}</td><td style="padding:10px 14px;text-align:center;color:#3498db;font-weight:700">${s.count}회</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${s.lastDownload}</td></tr>`).join('')
+    : '<tr><td colspan="3" style="padding:20px;text-align:center;color:#94a3b8">기록 없음</td></tr>';
+
+  let visitRows = visits.slice(0,20).length
+    ? visits.slice(0,20).map(v=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px;font-size:12px">${v.time}</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${v.ip}</td></tr>`).join('')
+    : '<tr><td colspan="2" style="padding:20px;text-align:center;color:#94a3b8">기록 없음</td></tr>';
+
+  contentEl.className='content markdown-body';
+  contentEl.innerHTML=`<div class="file-inner">
+    <div class="breadcrumb">${folder} > ${itemName}</div>
+    <div class="stats-panel">
+      <div class="stats-panel-title">📊 사용 통계</div>
+      <div class="stats-grid">
+        <div class="stats-card"><div class="stats-card-num">${visits.length}</div><div class="stats-card-label">총 접속</div></div>
+        <div class="stats-card"><div class="stats-card-num">${dlStats.reduce((a,s)=>a+s.count,0)}</div><div class="stats-card-label">총 다운로드</div></div>
+        <div class="stats-card"><div class="stats-card-num">${dlStats.length}</div><div class="stats-card-label">파일 종류</div></div>
+      </div>
+      <div class="stats-log-wrap">
+        <div class="stats-log-title">⬇️ 다운로드 통계 <button class="stats-reset-btn" onclick="resetAllStats()">🗑️ 초기화</button></div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:#f8fafc;font-size:12px;color:#64748b"><th style="padding:8px 14px;text-align:left">파일명</th><th style="padding:8px 14px;text-align:center">횟수</th><th style="padding:8px 14px;text-align:left">마지막</th></tr>
+          ${dlRows}
+        </table>
+      </div>
+      <div class="stats-log-wrap" style="margin-top:12px">
+        <div class="stats-log-title">👁️ 최근 접속 기록</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:#f8fafc;font-size:12px;color:#64748b"><th style="padding:8px 14px;text-align:left">시간</th><th style="padding:8px 14px;text-align:left">IP</th></tr>
+          ${visitRows}
+        </table>
+      </div>
+    </div>
+  </div>`;
 }
 
 /* ── 마크다운 → HTML ── */
@@ -716,23 +800,71 @@ function resetAllStats() {
 }
 
 function renderDashboard() {
+  // 숨겨진 stat DOM은 더 이상 사용 안 함 - renderIntroStats()로 대체
+}
+
+function renderIntroStats() {
   const visits = JSON.parse(localStorage.getItem('visitLog')||'[]');
   const dl     = JSON.parse(localStorage.getItem('downloadStats')||'[]');
-  const total  = dl.reduce((s,d)=>s+d.count,0);
-  const sv = document.getElementById('stat-visits');
-  const sd = document.getElementById('stat-downloads');
-  const sf = document.getElementById('stat-files');
-  if (sv) sv.textContent = visits.length;
-  if (sd) sd.textContent = total;
-  if (sf) sf.textContent = dl.length;
+  const total  = dl.reduce((s,d)=>s+d.count, 0);
 
-  const vl = document.getElementById('visit-log');
-  if (vl) vl.innerHTML = visits.length ? `<table class="log-table"><thead><tr><th>#</th><th>IP</th><th style="text-align:right">시간</th></tr></thead><tbody>${visits.map((v,i)=>`<tr><td style="color:#bbb">${i+1}</td><td style="color:#1a3a5c;font-weight:600">${v.ip||'-'}</td><td style="text-align:right;color:#999">${v.time||'-'}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="log-empty">접속 기록이 없습니다.</div>';
+  const visitRows = visits.slice(0,10).map((v,i)=>
+    `<tr><td style="color:#bbb;padding:8px 12px">${i+1}</td>
+     <td style="padding:8px 12px;font-weight:600;color:#1a3a5c">${v.ip||'-'}</td>
+     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${v.time||'-'}</td></tr>`
+  ).join('');
 
-  const dlog = document.getElementById('download-log');
-  if (dlog) dlog.innerHTML = dl.length ? `<table class="log-table"><thead><tr><th>파일명</th><th style="text-align:center">횟수</th><th style="text-align:right">마지막</th></tr></thead><tbody>${[...dl].sort((a,b)=>b.count-a.count).map(s=>`<tr><td>${s.fileName}</td><td style="text-align:center;font-weight:700;color:#3498db">${s.count}회</td><td style="text-align:right;color:#999">${s.lastDownload}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="log-empty">다운로드 기록이 없습니다.</div>';
+  const dlRows = [...dl].sort((a,b)=>b.count-a.count).slice(0,10).map(s=>
+    `<tr><td style="padding:8px 12px">${s.fileName}</td>
+     <td style="padding:8px 12px;text-align:center;font-weight:700;color:#3498db">${s.count}회</td>
+     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${s.lastDownload}</td></tr>`
+  ).join('');
+
+  contentEl.className = 'content markdown-body';
+  contentEl.innerHTML = `
+  <div class="file-inner">
+    <div class="breadcrumb">소개 > 접속 통계</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+      <h2 style="margin:0">📊 접속 통계</h2>
+      <button onclick="resetAllStats()" style="background:none;border:1px solid #e2e8f0;border-radius:4px;padding:5px 12px;font-size:12px;color:#94a3b8;cursor:pointer;">🗑️ 초기화</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px">
+      <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;padding:20px;text-align:center">
+        <div style="font-size:36px;font-weight:800;color:#3498db">${visits.length}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">👁️ 총 접속</div>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px;text-align:center">
+        <div style="font-size:36px;font-weight:800;color:#22c55e">${total}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">⬇️ 총 다운로드</div>
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:20px;text-align:center">
+        <div style="font-size:36px;font-weight:800;color:#f97316">${dl.length}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">📄 파일 종류</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;letter-spacing:.5px">최근 접속 기록</div>
+        <div style="border:1px solid #e8edf2;border-radius:8px;overflow:hidden">
+          ${visits.length
+            ? `<table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">#</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">IP</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">시간</th></tr></thead>
+                <tbody>${visitRows}</tbody></table>`
+            : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">기록 없음</div>'}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;letter-spacing:.5px">다운로드 통계</div>
+        <div style="border:1px solid #e8edf2;border-radius:8px;overflow:hidden">
+          ${dl.length
+            ? `<table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">파일명</th><th style="padding:8px 12px;text-align:center;font-size:11px;color:#94a3b8">횟수</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">마지막</th></tr></thead>
+                <tbody>${dlRows}</tbody></table>`
+            : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">기록 없음</div>'}
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 /* ── 모바일 ── */
@@ -745,9 +877,28 @@ function closeDrawer() {
   document.getElementById('mobileOverlay').classList.remove('show');
 }
 
+function showDashboard() {
+  const dash = document.getElementById('dashboard');
+  if (dash) { dash.style.display = ''; }
+  contentEl.innerHTML = '';
+}
+
+function showGraph() {
+  const gw = document.getElementById('graph-wrap');
+  if (gw) gw.style.opacity = '1';
+}
+
+function hideGraph() {
+  // 파일 보는 중이면 그래프 숨김
+  const dash = document.getElementById('dashboard');
+  if (dash && dash.style.display === 'none') {
+    const gw = document.getElementById('graph-wrap');
+    if (gw) gw.style.opacity = '0';
+  }
+}
+
 /* ── 초기화 ── */
 renderMenu();
-renderDashboard();
 recordVisit();
 initObsidianGraph();
 
@@ -794,6 +945,7 @@ async function initObsidianGraph() {
     });
 
     drawGraph(svg, nodes, links);
+    document.getElementById('graph-wrap').classList.add('loaded');
   } catch(e) {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e74c3c" font-size="12" dy=".3em">⚠️ GitHub 연결 실패: ${e.message}</text>`;
   }
