@@ -979,10 +979,19 @@ function drawGraph(svgEl, nodes, links) {
 
   // 시뮬레이션
   const sim = d3.forceSimulation(nodes)
-    .force('link',   d3.forceLink(links).id(d => d.id).distance(60))
-    .force('charge', d3.forceManyBody().strength(-120))
-    .force('center', d3.forceCenter(W/2, H/2))
-    .force('collide', d3.forceCollide(14));
+    .force('link',    d3.forceLink(links).id(d => d.id).distance(80))
+    .force('charge',  d3.forceManyBody().strength(-80))
+    .force('center',  d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide(16))
+    .alphaDecay(0)          // 시뮬레이션 멈추지 않음
+    .alphaMin(0)            // 최소 에너지 0
+    .velocityDecay(0.3);    // 속도 감쇠 (너무 빠르지 않게)
+
+  // 노드에 초기 랜덤 속도 부여 (계속 흘러다니게)
+  nodes.forEach(n => {
+    n.vx = (Math.random() - 0.5) * 2;
+    n.vy = (Math.random() - 0.5) * 2;
+  });
 
   // 링크
   const link = g.append('g').selectAll('line')
