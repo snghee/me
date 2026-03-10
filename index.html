@@ -975,6 +975,13 @@ function drawGraph(svgEl, nodes, links) {
     .on('zoom', (e) => g.attr('transform', e.transform));
   svg.call(graphZoom);
 
+  // 초기 줌 1.8배로 시작 (중간 사이즈)
+  const initScale = 1.8;
+  const initTransform = d3.zoomIdentity
+    .translate(W/2 - W/2 * initScale, H/2 - H/2 * initScale)
+    .scale(initScale);
+  svg.call(graphZoom.transform, initTransform);
+
   const g = svg.append('g');
 
   // 시뮬레이션
