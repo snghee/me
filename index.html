@@ -131,13 +131,15 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   position:relative; z-index:2; max-width:480px;
 }
 .hero-graph {
-  position:absolute; right:0; top:0; bottom:0;
-  width:50%; z-index:1; pointer-events:all;
+  width:100%; height:calc(100vh - 340px);
+  min-height:320px;
+  background:#1a1a2e;
+  position:relative;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
 @media (max-width:768px) {
   .hero-section { padding:40px 20px 36px; min-height:auto; }
-  .hero-graph { display:none; }
+  .hero-graph { height:320px; }
 }
 .hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
 .hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
@@ -236,15 +238,15 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
         <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
         <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
       </div>
-      <!-- 히어로 그래프 -->
-      <div class="hero-graph" id="graph-wrap">
-        <svg id="obs-graph"></svg>
-        <div class="graph-tooltip" id="graph-tooltip"></div>
-        <div class="graph-controls">
-          <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
-          <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
-          <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
-        </div>
+    </div>
+    <!-- 그래프: 히어로 아래 전체 너비 -->
+    <div class="hero-graph" id="graph-wrap">
+      <svg id="obs-graph"></svg>
+      <div class="graph-tooltip" id="graph-tooltip"></div>
+      <div class="graph-controls">
+        <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
+        <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
+        <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
     </div>
     <!-- 통계/로그는 숨겨진 상태로 유지 (소개 메뉴에서 표시) -->
@@ -365,14 +367,14 @@ function showDashboard() {
         <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
         <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
       </div>
-      <div class="hero-graph" id="graph-wrap">
-        <svg id="obs-graph"></svg>
-        <div class="graph-tooltip" id="graph-tooltip"></div>
-        <div class="graph-controls">
-          <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
-          <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
-          <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
-        </div>
+    </div>
+    <div class="hero-graph" id="graph-wrap">
+      <svg id="obs-graph"></svg>
+      <div class="graph-tooltip" id="graph-tooltip"></div>
+      <div class="graph-controls">
+        <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
+        <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
+        <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
     </div>
   </div>`;
