@@ -1051,11 +1051,30 @@ function drawGraph(svgEl, nodes, links) {
   function animate() { rotY += 0.004; render(); animId = requestAnimationFrame(animate); }
   animate();
 
-  // 마우스 드래그 회전
-  let drag=false, dx0, dy0, rx0, ry0;
-  svgEl.addEventListener('mousedown', e => { drag=true; dx0=e.clientX; dy0=e.clientY; rx0=rotX; ry0=rotY; cancelAnimationFrame(animId); });
-  window.addEventListener('mousemove', e => { if(!drag) return; rotY=ry0+(e.clientX-dx0)*0.005; rotX=rx0+(e.clientY-dy0)*0.005; render(); });
-  window.addEventListener('mouseup',   () => { if(drag){ drag=false; animate(); } });
+  // 마우스 드래그 회전 / 클릭 시 멈춤 토글
+  let drag=false, dx0, dy0, rx0, ry0, moved=false, paused=false;
+  svgEl.addEventListener('mousedown', e => {
+    drag=true; moved=false;
+    dx0=e.clientX; dy0=e.clientY; rx0=rotX; ry0=rotY;
+    cancelAnimationFrame(animId);
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    moved = true;
+    rotY=ry0+(e.clientX-dx0)*0.005; rotX=rx0+(e.clientY-dy0)*0.005; render();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag = false;
+    if (!moved) {
+      // 드래그 없이 클릭만 → 멈춤/재생 토글
+      paused = !paused;
+      if (!paused) animate();
+    } else {
+      // 드래그 후 손 뗌 → 멈춤 상태가 아니면 자동 회전 재개
+      if (!paused) animate();
+    }
+  });
 
   // 터치 회전
   svgEl.addEventListener('touchstart', e => { drag=true; dx0=e.touches[0].clientX; dy0=e.touches[0].clientY; rx0=rotX; ry0=rotY; cancelAnimationFrame(animId); },{passive:true});
