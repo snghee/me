@@ -987,10 +987,14 @@ function drawGraph(svgEl, nodes, links) {
     .alphaMin(0)            // 최소 에너지 0
     .velocityDecay(0.3);    // 속도 감쇠 (너무 빠르지 않게)
 
-  // 노드에 초기 랜덤 속도 부여 (계속 흘러다니게)
-  nodes.forEach(n => {
-    n.vx = (Math.random() - 0.5) * 2;
-    n.vy = (Math.random() - 0.5) * 2;
+  // 모든 노드를 중앙 한 점에 집결 → 방사형으로 폭발하듯 퍼져나감
+  nodes.forEach((n, i) => {
+    n.x = W/2;
+    n.y = H/2;
+    const angle = (i / nodes.length) * Math.PI * 2; // 균등 분산 방향
+    const speed = 4 + Math.random() * 4;
+    n.vx = Math.cos(angle) * speed;
+    n.vy = Math.sin(angle) * speed;
   });
 
   // 링크
