@@ -70,7 +70,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .dropdown::-webkit-scrollbar { width:4px; }
 .dropdown::-webkit-scrollbar-thumb { background:#4a6280; border-radius:2px; }
 .dd-item {
-  padding:10px 16px; cursor:pointer; font-size:13px;
+  padding:16px 24px; cursor:pointer; font-size:28px;
   color:rgba(255,255,255,.85);
   border-bottom:1px solid rgba(255,255,255,.05);
 }
@@ -78,7 +78,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .dd-item:hover  { background:#3498db; color:white; }
 .dd-item.active { color:#f39c12; font-weight:bold; }
 .dd-folder {
-  padding:6px 16px 4px; font-size:11px;
+  padding:12px 24px 8px; font-size:24px;
   color:rgba(255,255,255,.4); text-transform:uppercase;
   letter-spacing:.5px; background:rgba(0,0,0,.15);
   border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer;
@@ -150,10 +150,10 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .drawer-section-title { padding:10px 20px 6px; font-size:14px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.5px; }
 .drawer-item { padding:14px 28px; cursor:pointer; font-size:17px; color:rgba(255,255,255,.85); }
 .drawer-item:hover { background:#3498db; color:white; }
-.drawer-folder { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); display:flex; align-items:center; gap:8px; }
+.drawer-folder { padding:13px 24px; cursor:pointer; font-size:24px; color:rgba(255,255,255,.85); display:flex; align-items:center; gap:8px; }
 .drawer-folder:hover { background:rgba(255,255,255,.08); }
 .drawer-folder-list { display:none; }
-.drawer-folder-list .drawer-item { padding-left:40px; font-size:13px; }
+.drawer-folder-list .drawer-item { padding-left:40px; font-size:28px; }
 .drawer-loading { padding:10px 24px; font-size:13px; color:rgba(255,255,255,.4); }
 
 /* ── 히어로 ── */
@@ -223,7 +223,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-node { cursor:pointer; }
 .graph-node circle { stroke-width:1.5; transition:r .2s; }
 .graph-node:hover circle { r:7; }
-.graph-node text { font-size:11px; fill:rgba(255,255,255,0.85); pointer-events:none; }
+.graph-node text { font-size:20px; fill:rgba(255,255,255,0.85); pointer-events:none; }
 .graph-link { stroke:rgba(100,181,246,0.3); stroke-opacity:1; stroke-width:1; }
 .graph-controls { position:absolute; bottom:8px; right:8px; display:flex; gap:4px; z-index:10; }
 .graph-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
@@ -1059,7 +1059,7 @@ function drawGraph(svgEl, nodes, links) {
     gnodes.select('text')
       .attr('x', d => d.px)
       .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 10)
-      .attr('font-size', d => 8 + ((d.pz+1)/2)*3)
+      .attr('font-size', d => 16 + ((d.pz+1)/2)*6)
       .attr('fill','rgba(255,255,255,0.75)')
       .attr('opacity', d => (d.pz > 0 ? 1 : 0))
       .text(d => d.n.name.length > 10 ? d.n.name.slice(0,10)+'…' : d.n.name);
