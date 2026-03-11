@@ -38,7 +38,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   position:sticky; top:0; z-index:100;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
-.navbar-brand { font-size:18px; font-weight:bold; margin-right:30px; white-space:nowrap; }
+.navbar-brand { font-size:26px; font-weight:bold; margin-right:30px; white-space:nowrap; }
 .navbar-menu  { display:flex; align-items:center; gap:4px; flex:1; overflow-x:auto; }
 .navbar-menu::-webkit-scrollbar { display:none; }
 
@@ -87,8 +87,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .content { overflow-y:auto; background:white; }
 .content.markdown-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#24292e; }
 .content-area { background:white; }
-.file-inner { padding:32px 60px; }
-.breadcrumb { font-size:12px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
+.file-inner { padding:40px 60px; font-size:17px; }
+.breadcrumb { font-size:15px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
 
 /* ── 에디터 ── */
 .editor-toolbar {
@@ -146,8 +146,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .mobile-drawer.open { right:0; }
 .drawer-close { position:absolute; top:14px; right:14px; background:none; border:none; color:white; font-size:22px; cursor:pointer; }
 .drawer-section { padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08); }
-.drawer-section-title { padding:8px 20px 4px; font-size:11px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.5px; }
-.drawer-item { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); }
+.drawer-section-title { padding:10px 20px 6px; font-size:14px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.5px; }
+.drawer-item { padding:14px 28px; cursor:pointer; font-size:17px; color:rgba(255,255,255,.85); }
 .drawer-item:hover { background:#3498db; color:white; }
 .drawer-folder { padding:11px 24px; cursor:pointer; font-size:14px; color:rgba(255,255,255,.85); display:flex; align-items:center; gap:8px; }
 .drawer-folder:hover { background:rgba(255,255,255,.08); }
@@ -185,10 +185,10 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   .hero-section { padding:40px 20px 36px; min-height:auto; }
   .hero-graph { height:320px; }
 }
-.hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
-.hero-title { font-size:36px; font-weight:700; line-height:1.25; margin-bottom:14px; }
+.hero-tag { display:inline-block; font-size:14px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
+.hero-title { font-size:52px; font-weight:700; line-height:1.25; margin-bottom:14px; }
 .hero-title span { color:#64b5f6; }
-.hero-subtitle { font-size:14px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
+.hero-subtitle { font-size:18px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
 .hero-deco { position:absolute; right:60px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:10px; opacity:.12; }
 .hero-deco-line { height:2px; background:white; border-radius:2px; }
 
@@ -197,7 +197,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .stats-bar-label { font-size:11px; color:#999; font-weight:600; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
 .stats-bar-items { display:flex; gap:32px; flex:1; }
 .stats-bar-item { display:flex; align-items:center; gap:8px; font-size:12px; color:#666; }
-.stats-bar-num { font-size:16px; font-weight:700; color:#1a3a5c; }
+.stats-bar-num { font-size:20px; font-weight:700; color:#1a3a5c; }
 .stats-bar-reset { font-size:11px; color:#e74c3c; cursor:pointer; border:1px solid #fcc; background:#fff5f5; padding:4px 10px; border-radius:4px; white-space:nowrap; }
 .stats-bar-reset:hover { background:#fee; }
 
@@ -919,19 +919,8 @@ function showDashboard() {
   contentEl.innerHTML = '';
 }
 
-function showGraph() {
-  const gw = document.getElementById('graph-wrap');
-  if (gw) gw.style.opacity = '1';
-}
-
-function hideGraph() {
-  // 파일 보는 중이면 그래프 숨김
-  const dash = document.getElementById('dashboard');
-  if (dash && dash.style.display === 'none') {
-    const gw = document.getElementById('graph-wrap');
-    if (gw) gw.style.opacity = '0';
-  }
-}
+function showGraph() { /* 화면 유지 */ }
+function hideGraph() { /* 화면 유지 */ }
 
 /* ── 초기화 ── */
 renderMenu();
@@ -1215,8 +1204,13 @@ async function saveToGithub(name, folder) {
   const btn = document.getElementById('save-btn');
   if (btn) { btn.disabled=true; btn.textContent='⏳ 저장 중...'; }
   try {
-    const token = prompt('GitHub Personal Access Token 입력 (저장 권한 필요):');
-    if (!token) { if(btn){btn.disabled=false;btn.innerHTML='💾 저장';} return; }
+    // localStorage에서 토큰 가져오기 (없으면 한 번만 입력)
+    let token = localStorage.getItem('gh_write_token');
+    if (!token) {
+      token = prompt('GitHub Token 입력 (최초 1회, 이후 자동 저장):');
+      if (!token) { if(btn){btn.disabled=false;btn.innerHTML='💾 저장';} return; }
+      localStorage.setItem('gh_write_token', token);
+    }
 
     // UTF-8 → base64
     const encoded = btoa(unescape(encodeURIComponent(_currentRawContent)));
