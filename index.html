@@ -1152,7 +1152,7 @@ function renderEditor(name, folder) {
   <div class="editor-toolbar">
     <button class="editor-mode-btn ${isPreview?'active':''}" onclick="setEditorMode('preview','${name}','${folder}')">👁 미리보기</button>
     <button class="editor-mode-btn ${isEdit?'active':''}"    onclick="setEditorMode('edit','${name}','${folder}')">✏️ 편집</button>
-    <button class="editor-mode-btn ${isSplit?'active':''}"   onclick="setEditorMode('split','${name}','${folder}')">⬛ 분할</button>
+    <button class="editor-mode-btn ${isSplit?'active':''}"   onclick="setEditorMode(${isSplit?"'preview'":"'split'"},'${name}','${folder}')">⬛ 분할</button>
     <div class="editor-toolbar-sep"></div>
     <button class="editor-toolbar-btn" onclick="downloadObsidianFile('${_currentFilePath}','${name}')">⬇️ 다운로드</button>
     ${!isPreview ? `<button class="editor-save-btn" id="save-btn" onclick="saveToGithub('${name}','${folder}')">💾 저장</button>` : ''}
