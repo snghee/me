@@ -1537,14 +1537,12 @@ function renderEditor(name, folder) {
   splitBtn.onclick = () => setEditorMode(isSplit ? 'preview' : 'split', name, folder);
   toolbarEl.appendChild(splitBtn);
 
-  if (!isPreview) {
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'editor-save-btn';
-    saveBtn.id = 'save-btn';
-    saveBtn.textContent = '💾 저장';
-    saveBtn.onclick = () => saveToGithub(_currentFileName, _currentFileFolder);
-    toolbarEl.appendChild(saveBtn);
-  }
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'editor-save-btn';
+  saveBtn.id = 'save-btn';
+  saveBtn.textContent = '💾 저장';
+  saveBtn.onclick = () => saveToGithub(_currentFileName, _currentFileFolder);
+  toolbarEl.appendChild(saveBtn);
 
   const sep = document.createElement('div');
   sep.className = 'editor-toolbar-sep';
