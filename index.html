@@ -34,26 +34,26 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .navbar {
   background:#2c3e50; color:white;
   display:flex; align-items:center;
-  padding:0 20px; height:56px;
+  padding:0 28px; height:80px;
   position:sticky; top:0; z-index:100;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
-.navbar-brand { font-size:26px; font-weight:bold; margin-right:30px; white-space:nowrap; }
-.navbar-menu  { display:flex; align-items:center; gap:4px; flex:1; overflow-x:auto; }
+.navbar-brand { font-size:36px; font-weight:bold; margin-right:40px; white-space:nowrap; }
+.navbar-menu  { display:flex; align-items:center; gap:6px; flex:1; overflow-x:auto; }
 .navbar-menu::-webkit-scrollbar { display:none; }
 
 /* ── 메뉴 버튼 ── */
 .nav-item { position:relative; }
 .nav-btn {
-  display:flex; align-items:center; gap:6px;
-  padding:8px 14px; cursor:pointer;
-  border-radius:6px; font-size:14px; color:white;
+  display:flex; align-items:center; gap:8px;
+  padding:12px 22px; cursor:pointer;
+  border-radius:6px; font-size:22px; color:white;
   white-space:nowrap; user-select:none;
   background:none; border:none;
 }
 .nav-btn:hover { background:#3d5166; }
 .nav-btn.open  { background:#3d5166; }
-.nav-btn .arrow { font-size:10px; transition:transform .2s; display:inline-block; }
+.nav-btn .arrow { font-size:14px; transition:transform .2s; display:inline-block; }
 .nav-btn.open .arrow { transform:rotate(180deg); }
 
 /* ── 드롭다운 ── */
