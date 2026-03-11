@@ -127,9 +127,14 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 #easymde-wrap .EasyMDEContainer { border-radius:8px; overflow:hidden; }
 #easymde-wrap .EasyMDEContainer .editor-toolbar { display:none; }
 #easymde-wrap .CodeMirror {
-  min-height:500px; font-size:15px; line-height:1.8;
+  height:calc(100vh - 280px) !important;
+  min-height:400px; font-size:15px; line-height:1.8;
   font-family:'D2Coding','Fira Mono','Consolas',monospace;
   border:1px solid #e2e8f0; border-radius:8px; padding:8px;
+}
+#easymde-wrap .CodeMirror-scroll {
+  min-height:400px;
+  height:100%;
 }
 #easymde-wrap .CodeMirror .cm-header { color:#0a2342; font-weight:700; }
 #easymde-wrap .CodeMirror .cm-strong { font-weight:700; }
@@ -1218,8 +1223,11 @@ function renderEditor(name, folder) {
       initialValue: _currentRawContent,
       autofocus: true,
       spellChecker: false,
-      toolbar: false,          // 자체 툴바 숨김 (우리 툴바 사용)
+      toolbar: false,
       status: false,
+      autoresize: false,
+      minHeight: 'calc(100vh - 280px)',
+      maxHeight: 'calc(100vh - 280px)',
       renderingConfig: { singleLineBreaks: true },
       previewRender: (text) => mdToHtml(text),
       shortcuts: { togglePreview: null, toggleSideBySide: null, toggleFullScreen: null }
