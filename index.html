@@ -556,14 +556,9 @@ function renderMenu() {
                   fi.className = 'drawer-item';
                   fi.style.paddingLeft = '52px';
                   fi.textContent = '📄 ' + f.name;
-                  fi.addEventListener('click', async () => {
+                  fi.addEventListener('click', () => {
                     closeDrawer();
-                    contentEl.className='content markdown-body';
-                    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-                    try {
-                      const data = await ghGetRawFile(f.path);
-                      contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><button onclick="downloadObsidianFile('${f.path}','${f.name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
-                    } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
+                    loadObsidianFileByPath(f.path, f.name, fol);
                   });
                   folList.appendChild(fi);
                 });
@@ -714,13 +709,9 @@ async function populateObsidianMenu(dd) {
       dd.appendChild(folDiv);
       dd.appendChild(list);
       grouped[fol].forEach(f => {
-        const item = makeDdItem('📄 '+f.name, async () => {
+        const item = makeDdItem('📄 '+f.name, () => {
           closeAll();
-          try {
-            const data = await ghGetRawFile(f.path);
-            contentEl.className='content markdown-body';
-            contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${fol} > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><button onclick="downloadObsidianFile('${f.path}','${f.name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
-          } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
+          loadObsidianFileByPath(f.path, f.name, fol);
         });
         item.style.paddingLeft='28px';
         list.appendChild(item);
