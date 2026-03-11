@@ -123,6 +123,21 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   background:#fafafa; outline:none; box-sizing:border-box;
 }
 .editor-pane:focus { border-color:#3498db; background:white; }
+/* EasyMDE 커스텀 */
+#easymde-wrap .EasyMDEContainer { border-radius:8px; overflow:hidden; }
+#easymde-wrap .EasyMDEContainer .editor-toolbar { display:none; }
+#easymde-wrap .CodeMirror {
+  min-height:500px; font-size:15px; line-height:1.8;
+  font-family:'D2Coding','Fira Mono','Consolas',monospace;
+  border:1px solid #e2e8f0; border-radius:8px; padding:8px;
+}
+#easymde-wrap .CodeMirror .cm-header { color:#0a2342; font-weight:700; }
+#easymde-wrap .CodeMirror .cm-strong { font-weight:700; }
+#easymde-wrap .CodeMirror .cm-em { font-style:italic; color:#555; }
+#easymde-wrap .CodeMirror .cm-link { color:#3498db; }
+#easymde-wrap .CodeMirror .cm-url { color:#27ae60; }
+#easymde-wrap .CodeMirror .cm-comment { background:rgba(0,0,0,.04); border-radius:3px; }
+.split-wrap #easymde-wrap { flex:1; }
 .preview-pane { min-height:500px; }
 .split-wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .split-wrap .editor-pane { min-height:600px; }
@@ -260,6 +275,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easymde/2.18.0/easymde.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/easymde/2.18.0/easymde.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
@@ -1128,6 +1145,7 @@ let _editorMode = 'preview'; // 'preview' | 'edit' | 'split'
 let _currentFilePath = null;
 let _currentFileSha  = null;
 let _currentRawContent = '';
+let _easyMDE = null; // EasyMDE 인스턴스
 
 async function loadObsidianFileByPath(filePath, name, folder) {
   contentEl.className = 'content markdown-body';
@@ -1173,12 +1191,12 @@ function renderEditor(name, folder) {
 
   let body = '';
   if (isPreview) {
-    body = `<div class="preview-pane">${mdToHtml(_currentRawContent)}</div>`;
+    body = `<div class="preview-pane markdown-body">${mdToHtml(_currentRawContent)}</div>`;
   } else if (isEdit) {
-    body = `<textarea class="editor-pane" id="editor-textarea" oninput="onEditorInput()">${escHtml(_currentRawContent)}</textarea>`;
+    body = `<div id="easymde-wrap"><textarea id="editor-textarea"></textarea></div>`;
   } else { // split
     body = `<div class="split-wrap">
-      <textarea class="editor-pane" id="editor-textarea" oninput="onEditorInput()">${escHtml(_currentRawContent)}</textarea>
+      <div id="easymde-wrap"><textarea id="editor-textarea"></textarea></div>
       <div class="preview-pane markdown-body" id="editor-preview">${mdToHtml(_currentRawContent)}</div>
     </div>`;
   }
@@ -1191,12 +1209,34 @@ function renderEditor(name, folder) {
     ${toolbar}
     ${body}
   </div>`;
+
+  // EasyMDE 초기화 (편집/분할 모드)
+  if (!isPreview) {
+    if (_easyMDE) { try { _easyMDE.toTextArea(); } catch(e){} _easyMDE = null; }
+    _easyMDE = new EasyMDE({
+      element: document.getElementById('editor-textarea'),
+      initialValue: _currentRawContent,
+      autofocus: true,
+      spellChecker: false,
+      toolbar: false,          // 자체 툴바 숨김 (우리 툴바 사용)
+      status: false,
+      renderingConfig: { singleLineBreaks: true },
+      previewRender: (text) => mdToHtml(text),
+      shortcuts: { togglePreview: null, toggleSideBySide: null, toggleFullScreen: null }
+    });
+    // 실시간 분할 미리보기 동기화
+    _easyMDE.codemirror.on('change', () => {
+      _currentRawContent = _easyMDE.value();
+      const preview = document.getElementById('editor-preview');
+      if (preview) preview.innerHTML = mdToHtml(_currentRawContent);
+    });
+  }
 }
 
 function setEditorMode(mode, name, folder) {
-  // textarea 내용 유지
-  const ta = document.getElementById('editor-textarea');
-  if (ta) _currentRawContent = ta.value;
+  // EasyMDE 또는 textarea에서 현재 내용 저장
+  if (_easyMDE) { _currentRawContent = _easyMDE.value(); }
+  else { const ta = document.getElementById('editor-textarea'); if (ta) _currentRawContent = ta.value; }
   _editorMode = mode;
   renderEditor(name, folder);
 }
@@ -1217,6 +1257,8 @@ async function saveToGithub(name, folder) {
   const btn = document.getElementById('save-btn');
   if (btn) { btn.disabled=true; btn.textContent='⏳ 저장 중...'; }
   try {
+    // EasyMDE에서 최신 내용 가져오기
+    if (_easyMDE) _currentRawContent = _easyMDE.value();
     // localStorage에서 토큰 가져오기 (없으면 한 번만 입력)
     let token = localStorage.getItem('gh_write_token');
     if (!token) {
