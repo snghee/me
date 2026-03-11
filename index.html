@@ -1128,7 +1128,8 @@ async function loadObsidianFileByPath(filePath, name, folder) {
 
 async function ghGetFileMeta(path) {
   const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(path)}?ref=${GITHUB_BRANCH}`
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(path)}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+    { cache: 'no-store' }
   );
   if (!r.ok) throw new Error(`파일 메타 로드 실패: ${path}`);
   return await r.json();
@@ -1230,8 +1231,14 @@ async function saveToGithub(name, folder) {
     _currentFileSha = result.content.sha; // SHA 갱신
     showToast('✅ 저장 완료! 반영 중...');
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
-    // CDN 캐시 우회 - 저장된 내용 즉시 반영
-    const fresh = await ghGetRawFile(_currentFilePath, true);
+    // Contents API로 재로드 (raw CDN 캐시 우회)
+    const updatedMeta = await fetch(
+      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(_currentFilePath)}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+      { headers: { 'Authorization': `token ${localStorage.getItem('gh_write_token')}`, 'Cache-Control': 'no-cache' } }
+    ).then(r => r.json());
+    _currentFileSha = updatedMeta.sha;
+    let fresh = atob(updatedMeta.content.replace(/\n/g,''));
+    try { fresh = decodeURIComponent(escape(fresh)); } catch(e) {}
     _currentRawContent = fresh;
     renderEditor(name, folder);
     showToast('✅ 저장 완료!');
