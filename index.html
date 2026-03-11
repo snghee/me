@@ -89,6 +89,50 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .content-area { background:white; }
 .file-inner { padding:32px 60px; }
 .breadcrumb { font-size:12px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
+
+/* ── 에디터 ── */
+.editor-toolbar {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 0 14px; border-bottom:1px solid #e8edf2; margin-bottom:16px; flex-wrap:wrap;
+}
+.editor-toolbar-btn {
+  background:#f1f5f9; border:1px solid #e2e8f0; border-radius:5px;
+  padding:5px 10px; font-size:12px; cursor:pointer; color:#475569;
+  display:flex; align-items:center; gap:4px; white-space:nowrap;
+}
+.editor-toolbar-btn:hover { background:#e2e8f0; }
+.editor-toolbar-sep { width:1px; height:20px; background:#e2e8f0; margin:0 2px; }
+.editor-mode-btn {
+  padding:5px 14px; border-radius:5px; font-size:12px; cursor:pointer;
+  border:1px solid #e2e8f0;
+}
+.editor-mode-btn.active { background:#3498db; color:white; border-color:#3498db; }
+.editor-mode-btn:not(.active) { background:#f1f5f9; color:#475569; }
+.editor-save-btn {
+  margin-left:auto; padding:6px 18px; background:#22c55e; color:white;
+  border:none; border-radius:5px; font-size:13px; font-weight:600;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+}
+.editor-save-btn:hover { background:#16a34a; }
+.editor-save-btn:disabled { background:#94a3b8; cursor:not-allowed; }
+.editor-pane {
+  width:100%; min-height:500px; padding:16px; font-size:14px; line-height:1.8;
+  border:1px solid #e2e8f0; border-radius:8px; resize:vertical;
+  font-family:'D2Coding','Fira Code',monospace; color:#1e293b;
+  background:#fafafa; outline:none; box-sizing:border-box;
+}
+.editor-pane:focus { border-color:#3498db; background:white; }
+.preview-pane { min-height:500px; }
+.split-wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.split-wrap .editor-pane { min-height:600px; }
+.split-wrap .preview-pane { min-height:600px; padding:16px; border:1px solid #e2e8f0; border-radius:8px; overflow-y:auto; }
+.save-toast {
+  position:fixed; bottom:24px; right:24px; z-index:99999;
+  background:#1e293b; color:white; padding:12px 20px; border-radius:8px;
+  font-size:13px; display:flex; align-items:center; gap:8px;
+  animation:slideUp .3s ease; box-shadow:0 4px 20px rgba(0,0,0,0.3);
+}
+@keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
 .loading { text-align:center; padding:40px; color:#999; }
 .loading-spinner { border:4px solid #f3f3f3; border-top:4px solid #3498db; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:20px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
@@ -1085,15 +1129,143 @@ function drawGraph(svgEl, nodes, links) {
   graphZoom = null;
 }
 
+/* ── 옵시디안 에디터 상태 ── */
+let _editorMode = 'preview'; // 'preview' | 'edit' | 'split'
+let _currentFilePath = null;
+let _currentFileSha  = null;
+let _currentRawContent = '';
+
 async function loadObsidianFileByPath(filePath, name, folder) {
-  contentEl.className='content markdown-body';
-  contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+  contentEl.className = 'content markdown-body';
+  contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
   try {
-    const data = await ghGetRawFile(filePath);
-    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><h2 style="margin-bottom:20px">${name}</h2><button onclick="downloadObsidianFile('${filePath}','${name}')" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-bottom:20px">⬇️ 다운로드</button>${mdToHtml(data)}</div>`;
+    // SHA 필요 (저장 시 conflict 방지) → contents API 사용
+    const meta = await ghGetFileMeta(filePath);
+    _currentFileSha  = meta.sha;
+    _currentRawContent = atob(meta.content.replace(/
+/g,''));
+    // UTF-8 디코딩
+    try { _currentRawContent = decodeURIComponent(escape(_currentRawContent)); } catch(e){}
+    _currentFilePath = filePath;
+    _editorMode = 'preview';
+    renderEditor(name, folder);
   } catch(e) {
-    contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`;
+    contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`;
   }
+}
+
+async function ghGetFileMeta(path) {
+  const r = await fetch(
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(path)}?ref=${GITHUB_BRANCH}`
+  );
+  if (!r.ok) throw new Error(`파일 메타 로드 실패: ${path}`);
+  return await r.json();
+}
+
+function renderEditor(name, folder) {
+  const isEdit    = _editorMode === 'edit';
+  const isSplit   = _editorMode === 'split';
+  const isPreview = _editorMode === 'preview';
+
+  const toolbar = `
+  <div class="editor-toolbar">
+    <button class="editor-mode-btn ${isPreview?'active':''}" onclick="setEditorMode('preview','${name}','${folder}')">👁 미리보기</button>
+    <button class="editor-mode-btn ${isEdit?'active':''}"    onclick="setEditorMode('edit','${name}','${folder}')">✏️ 편집</button>
+    <button class="editor-mode-btn ${isSplit?'active':''}"   onclick="setEditorMode('split','${name}','${folder}')">⬛ 분할</button>
+    <div class="editor-toolbar-sep"></div>
+    <button class="editor-toolbar-btn" onclick="downloadObsidianFile('${_currentFilePath}','${name}')">⬇️ 다운로드</button>
+    ${!isPreview ? `<button class="editor-save-btn" id="save-btn" onclick="saveToGithub('${name}','${folder}')">💾 저장</button>` : ''}
+  </div>`;
+
+  let body = '';
+  if (isPreview) {
+    body = `<div class="preview-pane">${mdToHtml(_currentRawContent)}</div>`;
+  } else if (isEdit) {
+    body = `<textarea class="editor-pane" id="editor-textarea" oninput="onEditorInput()">${escHtml(_currentRawContent)}</textarea>`;
+  } else { // split
+    body = `<div class="split-wrap">
+      <textarea class="editor-pane" id="editor-textarea" oninput="onEditorInput()">${escHtml(_currentRawContent)}</textarea>
+      <div class="preview-pane markdown-body" id="editor-preview">${mdToHtml(_currentRawContent)}</div>
+    </div>`;
+  }
+
+  contentEl.className = 'content markdown-body';
+  contentEl.innerHTML = `
+  <div class="file-inner">
+    <div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div>
+    <h2 style="margin-bottom:12px">${name}</h2>
+    ${toolbar}
+    ${body}
+  </div>`;
+}
+
+function setEditorMode(mode, name, folder) {
+  // textarea 내용 유지
+  const ta = document.getElementById('editor-textarea');
+  if (ta) _currentRawContent = ta.value;
+  _editorMode = mode;
+  renderEditor(name, folder);
+}
+
+function onEditorInput() {
+  const ta = document.getElementById('editor-textarea');
+  if (!ta) return;
+  _currentRawContent = ta.value;
+  const preview = document.getElementById('editor-preview');
+  if (preview) preview.innerHTML = mdToHtml(_currentRawContent);
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function saveToGithub(name, folder) {
+  const btn = document.getElementById('save-btn');
+  if (btn) { btn.disabled=true; btn.textContent='⏳ 저장 중...'; }
+  try {
+    const token = prompt('GitHub Personal Access Token 입력 (저장 권한 필요):');
+    if (!token) { if(btn){btn.disabled=false;btn.innerHTML='💾 저장';} return; }
+
+    // UTF-8 → base64
+    const encoded = btoa(unescape(encodeURIComponent(_currentRawContent)));
+
+    const r = await fetch(
+      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(_currentFilePath)}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: `Update ${name}`,
+          content: encoded,
+          sha: _currentFileSha,
+          branch: GITHUB_BRANCH
+        })
+      }
+    );
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.message || '저장 실패');
+    }
+    const result = await r.json();
+    _currentFileSha = result.content.sha; // SHA 갱신
+    showToast('✅ 저장 완료!');
+    if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
+  } catch(e) {
+    showToast('❌ ' + e.message, true);
+    if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
+  }
+}
+
+function showToast(msg, isError=false) {
+  const el = document.createElement('div');
+  el.className = 'save-toast';
+  el.style.background = isError ? '#dc2626' : '#1e293b';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 
 function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.scaleBy, 1.4); }
