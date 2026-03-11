@@ -258,9 +258,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 </head>
 <body>
 
-<nav class="navbar" id="navbar"
-  onmouseenter="showGraph()"
-  onmouseleave="hideGraph()">
+<nav class="navbar" id="navbar">
   <div class="navbar-brand" onclick="showDashboard()" style="cursor:pointer">🏦 SBJ DNX</div>
   <div class="navbar-menu" id="navbar-menu"></div>
   <button class="hamburger" onclick="toggleDrawer()">☰</button>
@@ -948,6 +946,10 @@ function hideGraph() {
 renderMenu();
 recordVisit();
 initObsidianGraph();
+
+// navbar hover 이벤트 - 함수 정의 후 등록
+document.getElementById('navbar').addEventListener('mouseenter', showGraph);
+document.getElementById('navbar').addEventListener('mouseleave', hideGraph);
 
 /* ── 옵시디안 그래프 ── */
 let graphZoom = null, graphSvg = null;
