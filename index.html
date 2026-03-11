@@ -88,7 +88,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .content { overflow-y:hidden; background:white; flex:1; display:flex; flex-direction:column; }
 .content.markdown-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#24292e; }
 .content-area { background:white; }
-.file-inner { padding:40px 60px; font-size:17px; }
+.file-inner { padding:40px 60px; font-size:17px; overflow-y:auto; height:100%; box-sizing:border-box; }
 .breadcrumb { font-size:15px; color:#999; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #eee; }
 
 /* ── 에디터 ── */
@@ -1515,51 +1515,101 @@ function renderEditor(name, folder) {
   const isEdit    = _editorMode === 'edit';
   const isSplit   = _editorMode === 'split';
   const isPreview = _editorMode === 'preview';
+  const editorH   = 'height:calc(100vh - 240px)';
 
-  const toolbar = `
-  <div class="editor-toolbar">
-    <button class="editor-mode-btn ${isPreview?'active':''}" onclick="setEditorMode('preview','${name}','${folder}')">👁 미리보기</button>
-    <button class="editor-mode-btn ${isEdit?'active':''}"    onclick="setEditorMode('edit','${name}','${folder}')">✏️ 편집</button>
-    <button class="editor-mode-btn ${isSplit?'active':''}"   onclick="setEditorMode(${isSplit?"'preview'":"'split'"},'${name}','${folder}')">⬛ 분할</button>
-    ${!isPreview ? `<button class="editor-save-btn" id="save-btn">💾 저장</button>` : ''}
-    <div class="editor-toolbar-sep"></div>
-    <button class="editor-toolbar-btn" onclick="downloadObsidianFile('${_currentFilePath}','${name}')">⬇️ 다운로드</button>
-  </div>`;
+  // ── 툴바 DOM 직접 생성 ──
+  const toolbarEl = document.createElement('div');
+  toolbarEl.className = 'editor-toolbar';
 
-  const editorH = `height:calc(100vh - 240px)`;
-  let body = '';
-  if (isPreview) {
-    body = `<div class="preview-pane markdown-body" style="${editorH};overflow-y:auto;padding:8px 0">${mdToHtml(_currentRawContent)}</div>`;
-  } else if (isEdit) {
-    body = `<textarea class="editor-pane" id="editor-textarea" style="${editorH};width:100%;resize:none">${escHtml(_currentRawContent)}</textarea>`;
-  } else {
-    body = `<div class="split-wrap">
-      <textarea class="editor-pane" id="editor-textarea" style="${editorH};width:100%;resize:none">${escHtml(_currentRawContent)}</textarea>
-      <div class="preview-pane markdown-body" id="editor-preview" style="${editorH};overflow-y:auto;padding:16px;border:1px solid #e2e8f0;border-radius:8px">${mdToHtml(_currentRawContent)}</div>
-    </div>`;
+  const mkModeBtn = (label, mode) => {
+    const b = document.createElement('button');
+    b.className = 'editor-mode-btn' + (_editorMode === mode ? ' active' : '');
+    b.textContent = label;
+    b.onclick = () => setEditorMode(mode, name, folder);
+    return b;
+  };
+  toolbarEl.appendChild(mkModeBtn('👁 미리보기', 'preview'));
+  toolbarEl.appendChild(mkModeBtn('✏️ 편집', 'edit'));
+
+  const splitBtn = document.createElement('button');
+  splitBtn.className = 'editor-mode-btn' + (isSplit ? ' active' : '');
+  splitBtn.textContent = '⬛ 분할';
+  splitBtn.onclick = () => setEditorMode(isSplit ? 'preview' : 'split', name, folder);
+  toolbarEl.appendChild(splitBtn);
+
+  if (!isPreview) {
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'editor-save-btn';
+    saveBtn.id = 'save-btn';
+    saveBtn.textContent = '💾 저장';
+    saveBtn.onclick = () => saveToGithub(_currentFileName, _currentFileFolder);
+    toolbarEl.appendChild(saveBtn);
   }
+
+  const sep = document.createElement('div');
+  sep.className = 'editor-toolbar-sep';
+  toolbarEl.appendChild(sep);
+
+  const dlBtn = document.createElement('button');
+  dlBtn.className = 'editor-toolbar-btn';
+  dlBtn.textContent = '⬇️ 다운로드';
+  dlBtn.onclick = () => downloadObsidianFile(_currentFilePath, name);
+  toolbarEl.appendChild(dlBtn);
+
+  // ── 본문 ──
+  let bodyEl;
+  if (isPreview) {
+    bodyEl = document.createElement('div');
+    bodyEl.className = 'preview-pane markdown-body';
+    bodyEl.style.cssText = editorH + ';overflow-y:auto;padding:8px 0';
+    bodyEl.innerHTML = mdToHtml(_currentRawContent);
+  } else if (isEdit) {
+    bodyEl = document.createElement('textarea');
+    bodyEl.className = 'editor-pane';
+    bodyEl.id = 'editor-textarea';
+    bodyEl.style.cssText = editorH + ';width:100%;resize:none';
+    bodyEl.value = _currentRawContent;
+  } else {
+    bodyEl = document.createElement('div');
+    bodyEl.className = 'split-wrap';
+    const ta = document.createElement('textarea');
+    ta.className = 'editor-pane';
+    ta.id = 'editor-textarea';
+    ta.style.cssText = editorH + ';width:100%;resize:none';
+    ta.value = _currentRawContent;
+    const prev = document.createElement('div');
+    prev.className = 'preview-pane markdown-body';
+    prev.id = 'editor-preview';
+    prev.style.cssText = editorH + ';overflow-y:auto;padding:16px;border:1px solid #e2e8f0;border-radius:8px';
+    prev.innerHTML = mdToHtml(_currentRawContent);
+    bodyEl.appendChild(ta);
+    bodyEl.appendChild(prev);
+  }
+
+  // ── 컨테이너 조립 ──
+  const inner = document.createElement('div');
+  inner.className = 'file-inner';
+
+  const bc = document.createElement('div');
+  bc.className = 'breadcrumb';
+  bc.textContent = '자료실(옵시디안) > ' + folder + ' > ' + name;
+
+  const h2 = document.createElement('h2');
+  h2.style.marginBottom = '12px';
+  h2.textContent = name;
+
+  inner.appendChild(bc);
+  inner.appendChild(h2);
+  inner.appendChild(toolbarEl);
+  inner.appendChild(bodyEl);
 
   contentEl.className = 'content markdown-body';
-  contentEl.innerHTML = `
-  <div class="file-inner">
-    <div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div>
-    <h2 style="margin-bottom:12px">${name}</h2>
-    ${toolbar}
-    ${body}
-  </div>`;
+  contentEl.innerHTML = '';
+  contentEl.appendChild(inner);
 
-  // textarea 이벤트 등록
+  // ── 이벤트 ──
   const ta = document.getElementById('editor-textarea');
-  if (ta) {
-    ta.addEventListener('input', onEditorInput);
-    ta.focus();
-  }
-
-  // 저장 버튼 이벤트 등록 (전역 변수로 name/folder 전달)
-  const saveBtn = document.getElementById('save-btn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => saveToGithub(_currentFileName, _currentFileFolder));
-  }
+  if (ta) { ta.addEventListener('input', onEditorInput); ta.focus(); }
 }
 
 function setEditorMode(mode, name, folder) {
