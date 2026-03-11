@@ -791,16 +791,27 @@ function renderStats(folder, itemName) {
 
 /* ── 마크다운 → HTML ── */
 function mdToHtml(md) {
-  return '<p>'+md
+  if (!md) return '';
+  return md
+    // 헤딩
     .replace(/^### (.+)$/gm,'<h3>$1</h3>')
     .replace(/^## (.+)$/gm,'<h2>$1</h2>')
     .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    // 강조
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    // 링크, 코드
     .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank">$1</a>')
     .replace(/`(.+?)`/g,'<code>$1</code>')
+    // 리스트
     .replace(/^- (.+)$/gm,'<li>$1</li>')
-    .replace(/\n\n/g,'</p><p>')+'</p>';
+    // 빈 줄 → 단락 구분
+    .replace(/\n\n/g,'</p><p style="margin:0.6em 0">')
+    // 단일 줄바꿈 → <br>
+    .replace(/\n/g,'<br>')
+    // 전체 감싸기
+    .replace(/^(.)/,'<p style="margin:0">$1')
+    + '</p>';
 }
 
 /* ── 통계 ── */
@@ -1231,17 +1242,18 @@ async function saveToGithub(name, folder) {
     _currentFileSha = result.content.sha; // SHA 갱신
     showToast('✅ 저장 완료! 반영 중...');
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
-    // Contents API로 재로드 (raw CDN 캐시 우회)
-    const updatedMeta = await fetch(
-      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(_currentFilePath)}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
-      { headers: { 'Authorization': `token ${localStorage.getItem('gh_write_token')}`, 'Cache-Control': 'no-cache' } }
-    ).then(r => r.json());
-    _currentFileSha = updatedMeta.sha;
-    let fresh = atob(updatedMeta.content.replace(/\n/g,''));
-    try { fresh = decodeURIComponent(escape(fresh)); } catch(e) {}
-    _currentRawContent = fresh;
-    renderEditor(name, folder);
+    // 저장 직후 GitHub API 반영까지 잠시 대기 후 재로드
     showToast('✅ 저장 완료!');
+    setTimeout(async () => {
+      try {
+        const updatedMeta = await ghGetFileMeta(_currentFilePath);
+        _currentFileSha = updatedMeta.sha;
+        let fresh = atob(updatedMeta.content.replace(/\n/g,''));
+        try { fresh = decodeURIComponent(escape(fresh)); } catch(e2) {}
+        _currentRawContent = fresh;
+        renderEditor(name, folder);
+      } catch(e2) { /* 재로드 실패해도 무시 */ }
+    }, 1500);
   } catch(e) {
     showToast('❌ ' + e.message, true);
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
