@@ -1695,12 +1695,13 @@ async function showSaveDialog(name, folder) {
       // 해당 폴더의 파일들
       tree.filter(f => f.path.startsWith(fol + '/') && !f.path.slice(fol.length+1).includes('/'))
         .forEach(f => {
+          const fname = f.path.split('/').pop(); // path에서 파일명 추출
           const fileEl = document.createElement('div');
           fileEl.className = 'save-tree-file' + (f.path === _currentFilePath ? ' selected' : '');
-          fileEl.innerHTML = `📄 ${f.name}`;
+          fileEl.innerHTML = `📄 ${fname}`;
           fileEl.onclick = () => {
             selectSaveFolder(fol);
-            document.getElementById('save-filename').value = f.name;
+            document.getElementById('save-filename').value = fname;
             document.querySelectorAll('.save-tree-file').forEach(el => el.classList.remove('selected'));
             fileEl.classList.add('selected');
           };
