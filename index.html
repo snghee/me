@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+html, body { height:100%; overflow:hidden; }
+body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; flex-direction:column; height:100vh; }
 
 /* ── 메인 레이아웃 (콘텐츠 + 사이드바) ── */
 .main-layout { display:flex; flex:1; overflow:hidden; }
@@ -160,8 +161,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   position:relative;
   background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%);
   color:white;
-  padding:64px 60px 48px;
-  min-height:280px;
+  padding:16px 60px 14px;
   display:flex; align-items:center;
   overflow:hidden;
 }
@@ -175,8 +175,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   position:relative; z-index:2; max-width:480px;
 }
 .hero-graph {
-  width:100%; height:calc(100vh - 340px);
-  min-height:320px;
+  width:100%; height:calc(100vh - 170px);
+  min-height:200px;
   background:#1a1a2e;
   position:relative;
 }
@@ -185,10 +185,10 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   .hero-section { padding:40px 20px 36px; min-height:auto; }
   .hero-graph { height:320px; }
 }
-.hero-tag { display:inline-block; font-size:14px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
-.hero-title { font-size:52px; font-weight:700; line-height:1.25; margin-bottom:14px; }
+.hero-tag { display:inline-block; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:20px; }
+.hero-title { font-size:38px; font-weight:700; line-height:1.25; margin-bottom:14px; }
 .hero-title span { color:#64b5f6; }
-.hero-subtitle { font-size:18px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
+.hero-subtitle { font-size:15px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
 .hero-deco { position:absolute; right:60px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:10px; opacity:.12; }
 .hero-deco-line { height:2px; background:white; border-radius:2px; }
 
@@ -388,16 +388,7 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('.nav-item')) closeAll();
 });
 
-// navbar hover 시 그래프 화면으로 복귀
-document.getElementById('navbar-menu').addEventListener('mouseenter', () => {
-  const dash = document.getElementById('dashboard');
-  if (!dash) {
-    // 파일 뷰 → 대시보드(그래프)로 복귀
-    contentEl.className = 'content markdown-body';
-    contentEl.innerHTML = document.getElementById('_dashboard_cache')?.innerHTML || '';
-    showDashboard();
-  }
-});
+// navbar hover 시 화면 유지 (아무 동작 없음)
 
 function showDashboard() {
   contentEl.className = 'content markdown-body';
@@ -913,11 +904,7 @@ function closeDrawer() {
   document.getElementById('mobileOverlay').classList.remove('show');
 }
 
-function showDashboard() {
-  const dash = document.getElementById('dashboard');
-  if (dash) { dash.style.display = ''; }
-  contentEl.innerHTML = '';
-}
+// showDashboard: 위에서 정의됨
 
 function showGraph() { /* 화면 유지 */ }
 function hideGraph() { /* 화면 유지 */ }
