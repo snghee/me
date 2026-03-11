@@ -1240,7 +1240,6 @@ async function saveToGithub(name, folder) {
     }
     const result = await r.json();
     _currentFileSha = result.content.sha; // SHA 갱신
-    showToast('✅ 저장 완료! 반영 중...');
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
     // 저장 직후 GitHub API 반영까지 잠시 대기 후 재로드
     showToast('✅ 저장 완료!');
