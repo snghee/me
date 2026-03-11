@@ -1232,6 +1232,10 @@ function renderEditor(name, folder) {
       previewRender: (text) => mdToHtml(text),
       shortcuts: { togglePreview: null, toggleSideBySide: null, toggleFullScreen: null }
     });
+    // CodeMirror 높이 직접 설정
+    const cmHeight = Math.max(window.innerHeight - 280, 400);
+    _easyMDE.codemirror.setSize('100%', cmHeight + 'px');
+
     // 실시간 분할 미리보기 동기화
     _easyMDE.codemirror.on('change', () => {
       _currentRawContent = _easyMDE.value();
