@@ -601,7 +601,8 @@ function renderMenu() {
                   fi.className = 'drawer-item';
                   fi.style.paddingLeft = '52px';
                   fi.textContent = '📄 ' + f.name;
-                  fi.addEventListener('click', () => {
+                  fi.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     closeDrawer();
                     loadObsidianFileByPath(f.path, f.name, fol);
                   });
@@ -627,7 +628,7 @@ function makeDdItem(text, onClick) {
   const d = document.createElement('div');
   d.className = 'dd-item';
   d.textContent = text;
-  d.addEventListener('click', onClick);
+  d.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
   return d;
 }
 
@@ -1483,19 +1484,21 @@ let _currentFileName = '';
 let _currentFileFolder = '';
 
 async function loadObsidianFileByPath(filePath, name, folder) {
+  // 전역 상태 먼저 설정
+  _currentFileName   = name;
+  _currentFileFolder = folder;
+  _currentFilePath   = filePath;
+  _editorMode        = 'preview';
+
+  // 로딩 표시
   contentEl.className = 'content markdown-body';
   contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-  _currentFileName = name;
-  _currentFileFolder = folder;
+
   try {
-    // SHA 필요 (저장 시 conflict 방지) → contents API 사용
     const meta = await ghGetFileMeta(filePath);
-    _currentFileSha  = meta.sha;
+    _currentFileSha    = meta.sha;
     _currentRawContent = atob(meta.content.replace(/\n/g,''));
-    // UTF-8 디코딩
-    try { _currentRawContent = decodeURIComponent(escape(_currentRawContent)); } catch(e){}
-    _currentFilePath = filePath;
-    _editorMode = 'preview';
+    try { _currentRawContent = decodeURIComponent(escape(_currentRawContent)); } catch(e2){}
     renderEditor(name, folder);
   } catch(e) {
     contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`;
