@@ -1144,8 +1144,7 @@ async function loadObsidianFileByPath(filePath, name, folder) {
     // SHA 필요 (저장 시 conflict 방지) → contents API 사용
     const meta = await ghGetFileMeta(filePath);
     _currentFileSha  = meta.sha;
-    _currentRawContent = atob(meta.content.replace(/
-/g,''));
+    _currentRawContent = atob(meta.content.replace(/\n/g,''));
     // UTF-8 디코딩
     try { _currentRawContent = decodeURIComponent(escape(_currentRawContent)); } catch(e){}
     _currentFilePath = filePath;
