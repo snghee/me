@@ -395,8 +395,8 @@ async function ghGetRawFile(path, bustCache=false) {
 
 const menuData = {
   "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md", "📊 접속 통계":"INTRO_STATS" },
-  "자료실(구글드라이브)": null,
-  "자료실(옵시디안)":    null,
+  "구글드라이브": null,
+  "옵시디안":    null,
   "문서":              { "✏️ 새 문서 작성":"NEW_DOC", "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
 };
 
@@ -498,8 +498,8 @@ function renderMenu() {
           document.getElementById('btn-' + capturedId).classList.add('open');
           openId = capturedId;
           console.log('[MENU] opened dd classList:', capturedDd.classList.toString());
-          if (capturedFolder === '자료실(구글드라이브)' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
-          if (capturedFolder === '자료실(옵시디안)'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
+          if (capturedFolder === '구글드라이브' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
+          if (capturedFolder === '옵시디안'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
         }
       };
     })(id, folder, dd));
@@ -559,7 +559,7 @@ function renderMenu() {
           loaded = true;
           subList.innerHTML = '<div class="drawer-loading">⏳ 불러오는 중...</div>';
           try {
-            if (folder === '자료실(구글드라이브)') {
+            if (folder === '구글드라이브') {
               await populateServiceMenu(dd);
               subList.innerHTML = '';
               dd.querySelectorAll('.dd-item, .dd-folder').forEach(el => {
@@ -569,7 +569,7 @@ function renderMenu() {
                 item.addEventListener('click', () => { closeDrawer(); el.click(); });
                 subList.appendChild(item);
               });
-            } else if (folder === '자료실(옵시디안)') {
+            } else if (folder === '옵시디안') {
               const tree = await ghGetTree();
               const files = tree.filter(f => !f.path.startsWith('.')).map(f => {
                 const parts = f.path.split('/');
@@ -680,7 +680,7 @@ async function populateServiceMenu(dd) {
       grouped[fol].forEach(f => {
       const item = makeDdItem('📄 '+f.name, async () => {
         closeAll();
-        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
         try {
           await initGapi();
           const res = await gapi.client.drive.files.get({ fileId:f.id, alt:'media' });
@@ -688,7 +688,7 @@ async function populateServiceMenu(dd) {
           const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${text}</pre>`;
           recordDownload(f.name, f.id);
           contentEl.className='content markdown-body';
-          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
+          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
         } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
       });
         item.style.paddingLeft='28px';
@@ -1522,7 +1522,7 @@ async function loadObsidianFileByPath(filePath, name, folder) {
 
   // 로딩 표시
   contentEl.className = 'content markdown-body';
-  contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">자료실(옵시디안) > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+  contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">옵시디안 > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
 
   try {
     const meta = await ghGetFileMeta(filePath);
@@ -1623,7 +1623,7 @@ function renderEditor(name, folder) {
 
   const bc = document.createElement('div');
   bc.className = 'breadcrumb';
-  bc.textContent = '자료실(옵시디안) > ' + folder + ' > ' + name;
+  bc.textContent = '옵시디안 > ' + folder + ' > ' + name;
 
   const h2 = document.createElement('h2');
   h2.style.marginBottom = '12px';
