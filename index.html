@@ -738,7 +738,19 @@ async function populateObsidianMenu(dd) {
     ctrlBar.appendChild(btnCollapse);
     dd.appendChild(ctrlBar);
 
-    Object.keys(grouped).sort().forEach(fol => {
+    // 루트 파일 먼저 표시 (폴더 없이)
+    if (grouped['루트']) {
+      grouped['루트'].forEach(f => {
+        const item = makeDdItem('📄 '+f.name, () => {
+          closeAll();
+          loadObsidianFileByPath(f.path, f.name, '루트');
+        });
+        dd.appendChild(item);
+      });
+    }
+
+    // 하위 폴더 표시
+    Object.keys(grouped).sort().filter(fol => fol !== '루트').forEach(fol => {
       const folDiv = document.createElement('div');
       folDiv.className = 'dd-folder';
       folDiv.innerHTML = '<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 '+fol;
