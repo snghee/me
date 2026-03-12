@@ -1732,11 +1732,13 @@ async function confirmSaveDialog() {
   const filename = document.getElementById('save-filename')?.value?.trim();
 
   if (!filename) { alert('파일명을 입력해주세요.'); return; }
+  if (!selectedFolder) { alert('폴더를 선택해주세요.'); return; }
 
-  const targetPath = selectedFolder === '/' || !selectedFolder
+  const targetPath = selectedFolder === '/' || selectedFolder === '루트'
     ? filename
     : `${selectedFolder}/${filename}`;
 
+  showToast(`📁 저장 경로: ${targetPath}`);
   overlay.remove();
 
   const btn = document.getElementById('save-btn');
@@ -1799,7 +1801,7 @@ async function confirmSaveDialog() {
       } catch(e2) { /* 재로드 실패해도 무시 */ }
     }, 1500);
   } catch(e) {
-    showToast('❌ ' + e.message, true);
+    showToast('❌ 오류: ' + e.message + ' / path:' + (typeof targetPath !== 'undefined' ? targetPath : '?'), true);
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
   }
 }
