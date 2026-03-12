@@ -1330,31 +1330,55 @@ async function initObsidianGraph() {
       } catch(e) {}
     }));
 
-    const nodes = rawNodes;
-
-    if (!nodes.length) {
+    if (!rawNodes.length) {
       svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="13" dy=".3em">노트가 없습니다</text>';
       return;
     }
 
-    // 링크: 폴더 기반 + 태그 기반 (중복 방지)
+    // ── 태그를 독립 노드로 추가 (옵시디안 스타일) ──
+    const tagNodeMap = {}; // tag → node id
+    const allTags = new Set();
+    rawNodes.forEach(n => (n.tags||[]).forEach(t => allTags.add(t)));
+
+    allTags.forEach(tag => {
+      const tagId = '__tag__' + tag;
+      tagNodeMap[tag] = tagId;
+      rawNodes.push({
+        id:     tagId,
+        name:   '#' + tag,
+        path:   null,
+        folder: '__tag__',
+        tags:   [],
+        isTag:  true,
+        tagName: tag
+      });
+    });
+
+    const nodes = rawNodes;
+
+    // ── 링크: 파일→태그노드 + 같은폴더 ──
     const links = [];
     const linkSet = new Set();
-    const addLink = (a, b) => {
+    const addLink = (a, b, type='folder') => {
       const key = [a,b].sort().join('||');
-      if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b }); }
+      if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b, type }); }
     };
-    // 같은 폴더끼리 연결
-    const folderMap = {};
-    nodes.forEach(n => { if(!folderMap[n.folder]) folderMap[n.folder]=[]; folderMap[n.folder].push(n.id); });
-    Object.values(folderMap).forEach(ids => {
-      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
+
+    // 파일 → 태그 노드 연결
+    rawNodes.filter(n => !n.isTag).forEach(n => {
+      (n.tags||[]).forEach(t => {
+        if (tagNodeMap[t]) addLink(n.id, tagNodeMap[t], 'tag');
+      });
     });
-    // 같은 태그끼리 연결
-    const tagMap = {};
-    nodes.forEach(n => { (n.tags||[]).forEach(t=>{ if(!tagMap[t]) tagMap[t]=[]; tagMap[t].push(n.id); }); });
-    Object.values(tagMap).forEach(ids => {
-      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
+
+    // 같은 폴더끼리 연결 (태그 노드 제외)
+    const folderMap = {};
+    rawNodes.filter(n => !n.isTag).forEach(n => {
+      if (!folderMap[n.folder]) folderMap[n.folder] = [];
+      folderMap[n.folder].push(n.id);
+    });
+    Object.values(folderMap).forEach(ids => {
+      for (let i = 0; i < ids.length - 1; i++) addLink(ids[i], ids[i+1], 'folder');
     });
 
     drawGraph(svg, nodes, links);
@@ -1366,14 +1390,21 @@ async function initObsidianGraph() {
 
 function drawGraph(svgEl, nodes, links) {
   const wrap = svgEl.parentElement;
-  // requestAnimationFrame으로 실제 크기 보장
-  const W = wrap.offsetWidth  || window.innerWidth  || 800;
+  const W = wrap.offsetWidth  || window.innerWidth  || 900;
   const H = wrap.offsetHeight || window.innerHeight || 600;
   const tooltip = document.getElementById('graph-tooltip');
 
-  const folders = [...new Set(nodes.map(n => n.folder))];
-  const palette = ['#58a6ff','#3fb950','#ff7b72','#d2a8ff','#ffa657','#79c0ff','#56d364','#f78166'];
-  const colors  = d3.scaleOrdinal(palette).domain(folders);
+  // 폴더별 색상 (태그 노드 제외)
+  const fileNodes = nodes.filter(n => !n.isTag);
+  const folders   = [...new Set(fileNodes.map(n => n.folder))];
+  const palette   = ['#58a6ff','#3fb950','#ff7b72','#d2a8ff','#ffa657','#79c0ff','#56d364','#f78166'];
+  const folderColor = d3.scaleOrdinal(palette).domain(folders);
+
+  // 태그 노드 색상: 연한 노란/민트
+  const TAG_COLOR  = '#e3b341';
+  const TAG_BORDER = '#f0c060';
+
+  const nodeColor = d => d.isTag ? TAG_COLOR : folderColor(d.folder);
 
   const svg = d3.select(svgEl).attr('width', W).attr('height', H);
   svg.selectAll('*').remove();
@@ -1381,135 +1412,161 @@ function drawGraph(svgEl, nodes, links) {
   // 배경
   svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#0d1117');
 
-  // 글로우 필터
+  // 필터: 파일 노드 글로우 / 태그 노드 글로우
   const defs = svg.append('defs');
-  const filter = defs.append('filter').attr('id', 'node-glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
-  filter.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
-  const feMerge = filter.append('feMerge');
-  feMerge.append('feMergeNode').attr('in','blur');
-  feMerge.append('feMergeNode').attr('in','SourceGraphic');
+  ['file-glow','tag-glow'].forEach((id, i) => {
+    const f = defs.append('filter').attr('id', id).attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%');
+    f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation', i===0 ? '3' : '5').attr('result','blur');
+    const m = f.append('feMerge');
+    m.append('feMergeNode').attr('in','blur');
+    m.append('feMergeNode').attr('in','SourceGraphic');
+  });
 
   // 줌 레이어
   const g = svg.append('g');
-  const zoom = d3.zoom().scaleExtent([0.2, 5]).on('zoom', e => g.attr('transform', e.transform));
+  const zoom = d3.zoom().scaleExtent([0.15, 6]).on('zoom', e => g.attr('transform', e.transform));
   svg.call(zoom);
   graphZoom = zoom;
   graphSvg  = svg;
 
-  // 링크 수 기반 노드 크기 계산
+  // 링크 수 → 파일 노드 크기
   const linkCount = {};
   nodes.forEach(n => { linkCount[n.id] = 0; });
   links.forEach(l => {
-    const sid = l.source.id || l.source;
-    const tid = l.target.id || l.target;
+    const sid = typeof l.source === 'object' ? l.source.id : l.source;
+    const tid = typeof l.target === 'object' ? l.target.id : l.target;
     if (linkCount[sid] !== undefined) linkCount[sid]++;
     if (linkCount[tid] !== undefined) linkCount[tid]++;
   });
-  const nodeR = d => 4 + Math.min((linkCount[d.id] || 0) * 1.5, 10);
+
+  // 노드 반지름: 파일은 링크수 기반, 태그는 연결 파일 수 기반 (더 크게)
+  const nodeR = d => d.isTag
+    ? 7 + Math.min((linkCount[d.id] || 0) * 2, 14)   // 태그: 7~21
+    : 4 + Math.min((linkCount[d.id] || 0) * 1.2, 9);  // 파일: 4~13
 
   // Force simulation
   const sim = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id(d => d.id)
       .distance(l => {
-        const sf = nodes.find(n => n.id === (l.source.id||l.source));
-        const tf = nodes.find(n => n.id === (l.target.id||l.target));
-        return (sf && tf && sf.folder === tf.folder) ? 70 : 140;
+        const isTagLink = l.type === 'tag'
+          || (typeof l.source === 'object' && l.source.isTag)
+          || (typeof l.target === 'object' && l.target.isTag);
+        return isTagLink ? 80 : 65;
       })
-      .strength(0.5))
-    .force('charge', d3.forceManyBody().strength(-220).distanceMax(400))
-    .force('center', d3.forceCenter(W/2, H/2).strength(0.08))
-    .force('collision', d3.forceCollide(d => nodeR(d) + 18))
-    .force('x', d3.forceX(W/2).strength(0.03))
-    .force('y', d3.forceY(H/2).strength(0.03));
+      .strength(l => l.type === 'tag' ? 0.6 : 0.4))
+    .force('charge', d3.forceManyBody().strength(d => d.isTag ? -300 : -180).distanceMax(500))
+    .force('center', d3.forceCenter(W/2, H/2).strength(0.06))
+    .force('collision', d3.forceCollide(d => nodeR(d) + 20))
+    .force('x', d3.forceX(W/2).strength(0.02))
+    .force('y', d3.forceY(H/2).strength(0.02));
 
-  // 링크
-  const linkEl = g.append('g').selectAll('line').data(links).join('line')
-    .attr('stroke', l => {
-      const sf = nodes.find(n => n.id === (l.source.id||l.source));
-      const tf = nodes.find(n => n.id === (l.target.id||l.target));
-      return (sf && tf && sf.folder === tf.folder)
-        ? colors(sf.folder) : 'rgba(255,255,255,0.15)';
-    })
-    .attr('stroke-opacity', 0.35)
-    .attr('stroke-width', 1);
+  // ── 링크 ──
+  const linkEl = g.append('g').attr('class','link-layer')
+    .selectAll('line').data(links).join('line')
+    .attr('stroke', l => l.type === 'tag' ? 'rgba(227,179,65,0.5)' : 'rgba(255,255,255,0.12)')
+    .attr('stroke-opacity', 1)
+    .attr('stroke-width',   l => l.type === 'tag' ? 1.2 : 0.8)
+    .attr('stroke-dasharray', l => l.type === 'folder' ? '3,3' : 'none');
 
-  // 노드 그룹
-  const nodeEl = g.append('g').selectAll('g').data(nodes).join('g')
-    .style('cursor', 'pointer')
+  // ── 노드 그룹 ──
+  const nodeEl = g.append('g').attr('class','node-layer')
+    .selectAll('g').data(nodes).join('g')
+    .style('cursor', d => d.isTag ? 'default' : 'pointer')
     .call(d3.drag()
-      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
-    .on('mouseover', (e, d) => {
+      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }))
+    .on('mouseover', (e,d) => {
       tooltip.style.display = 'block';
-      const tagStr = d.tags && d.tags.length ? '  🏷 ' + d.tags.join(', ') : '';
-      tooltip.textContent = d.name + (d.folder !== '루트' ? '  (' + d.folder + ')' : '') + tagStr;
-      // 연결 하이라이트
+      if (d.isTag) {
+        // 이 태그를 가진 파일 목록
+        const connected = links
+          .filter(l => (l.source.id||l.source)===d.id||(l.target.id||l.target)===d.id)
+          .map(l => { const oid = (l.source.id||l.source)===d.id ? (l.target.id||l.target) : (l.source.id||l.source); return nodes.find(n=>n.id===oid)?.name||''; })
+          .filter(Boolean);
+        tooltip.textContent = d.name + '  (' + connected.length + '개 노트)';
+      } else {
+        const tagStr = d.tags && d.tags.length ? '  🏷 ' + d.tags.join(', ') : '';
+        tooltip.textContent = d.name + (d.folder !== '루트' ? '  (' + d.folder + ')' : '') + tagStr;
+      }
+      // 연결 노드 하이라이트
+      const connSet = new Set([d.id]);
+      links.forEach(l => {
+        const sid = l.source.id||l.source, tid = l.target.id||l.target;
+        if (sid===d.id) connSet.add(tid);
+        if (tid===d.id) connSet.add(sid);
+      });
       linkEl
-        .attr('stroke-opacity', l => (l.source.id===d.id||l.target.id===d.id) ? 0.9 : 0.05)
-        .attr('stroke-width',   l => (l.source.id===d.id||l.target.id===d.id) ? 2.5 : 1);
+        .attr('stroke-opacity', l => (l.source.id===d.id||l.target.id===d.id) ? 1 : 0.04)
+        .attr('stroke-width',   l => (l.source.id===d.id||l.target.id===d.id) ? 2.5 : 0.8);
       nodeEl.selectAll('circle.outer')
-        .attr('opacity', n2 => {
-          if (n2.id === d.id) return 1;
-          return links.some(l => (l.source.id===d.id&&l.target.id===n2.id)||(l.target.id===d.id&&l.source.id===n2.id)) ? 1 : 0.15;
-        });
+        .attr('opacity', n2 => connSet.has(n2.id) ? 1 : 0.1);
+      nodeEl.selectAll('text')
+        .attr('opacity', n2 => connSet.has(n2.id) ? 1 : 0.1);
     })
     .on('mousemove', e => {
-      tooltip.style.left = (e.clientX + 14) + 'px';
-      tooltip.style.top  = (e.clientY - 32) + 'px';
+      tooltip.style.left = (e.clientX+14)+'px';
+      tooltip.style.top  = (e.clientY-32)+'px';
     })
     .on('mouseout', () => {
       tooltip.style.display = 'none';
-      linkEl.attr('stroke-opacity', 0.35).attr('stroke-width', 1);
+      linkEl.attr('stroke-opacity', 1).attr('stroke-width', l => l.type==='tag' ? 1.2 : 0.8);
       nodeEl.selectAll('circle.outer').attr('opacity', 1);
+      nodeEl.selectAll('text').attr('opacity', 1);
     })
-    .on('click', (e, d) => { e.stopPropagation(); loadObsidianFileByPath(d.path, d.name, d.folder); });
+    .on('click', (e,d) => {
+      e.stopPropagation();
+      if (!d.isTag && d.path) loadObsidianFileByPath(d.path, d.name, d.folder);
+    });
 
-  // 외부 원 (반투명 후광)
-  nodeEl.append('circle').attr('class', 'outer')
-    .attr('r', d => nodeR(d) + 4)
-    .attr('fill', d => colors(d.folder))
-    .attr('fill-opacity', 0.12)
-    .attr('stroke', d => colors(d.folder))
-    .attr('stroke-width', 1)
-    .attr('stroke-opacity', 0.4);
+  // 외부 후광 원
+  nodeEl.append('circle').attr('class','outer')
+    .attr('r', d => nodeR(d) + (d.isTag ? 6 : 3))
+    .attr('fill', d => nodeColor(d))
+    .attr('fill-opacity', d => d.isTag ? 0.18 : 0.1)
+    .attr('stroke', d => nodeColor(d))
+    .attr('stroke-width', d => d.isTag ? 1.5 : 1)
+    .attr('stroke-opacity', d => d.isTag ? 0.7 : 0.35);
 
-  // 내부 원 (메인 노드)
-  nodeEl.append('circle').attr('class', 'inner')
+  // 내부 메인 원
+  nodeEl.append('circle').attr('class','inner')
     .attr('r', d => nodeR(d))
-    .attr('fill', d => colors(d.folder))
-    .attr('filter', 'url(#node-glow)');
+    .attr('fill', d => nodeColor(d))
+    .attr('filter', d => d.isTag ? 'url(#tag-glow)' : 'url(#file-glow)');
 
-  // 파일명 텍스트
-  nodeEl.append('text').attr('class', 'node-label')
-    .attr('dy', d => nodeR(d) + 14)
-    .attr('text-anchor', 'middle')
-    .attr('font-size', d => Math.min(11 + (linkCount[d.id]||0), 13) + 'px')
-    .attr('fill', 'rgba(255,255,255,0.8)')
-    .attr('pointer-events', 'none')
-    .text(d => d.name.length > 15 ? d.name.slice(0, 15) + '…' : d.name);
+  // 태그 노드: 마름모 오버레이 (옵시디안 스타일)
+  nodeEl.filter(d => d.isTag).append('polygon')
+    .attr('points', d => {
+      const r = nodeR(d) * 0.7;
+      return `0,${-r} ${r},0 0,${r} ${-r},0`;
+    })
+    .attr('fill', TAG_BORDER)
+    .attr('fill-opacity', 0.5)
+    .attr('pointer-events', 'none');
 
-  // 태그 텍스트 (파일명 아래)
-  nodeEl.append('text').attr('class', 'tag-label')
-    .attr('dy', d => nodeR(d) + 26)
+  // 텍스트: 파일명 / 태그명
+  nodeEl.append('text')
+    .attr('dy', d => nodeR(d) + (d.isTag ? 18 : 13))
     .attr('text-anchor', 'middle')
-    .attr('font-size', '9px')
-    .attr('fill', 'rgba(255,255,255,0.35)')
+    .attr('font-size', d => d.isTag ? '10px' : '10px')
+    .attr('font-weight', d => d.isTag ? '600' : '400')
+    .attr('fill', d => d.isTag ? TAG_BORDER : 'rgba(255,255,255,0.75)')
     .attr('pointer-events', 'none')
-    .text(d => d.tags && d.tags.length ? d.tags.slice(0, 3).map(t => '#'+t).join(' ') : '');
+    .text(d => d.name.length > 16 ? d.name.slice(0,16)+'…' : d.name);
 
   // tick
   sim.on('tick', () => {
     linkEl
       .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-    nodeEl.attr('transform', d => `translate(${d.x},${d.y})`);
+    nodeEl.attr('transform', d => `translate(${d.x||0},${d.y||0})`);
   });
 
   // 배경 클릭 → 하이라이트 해제
   svg.on('click', () => {
-    linkEl.attr('stroke-opacity', 0.35).attr('stroke-width', 1);
+    linkEl.attr('stroke-opacity', 1).attr('stroke-width', l => l.type==='tag' ? 1.2 : 0.8);
     nodeEl.selectAll('circle.outer').attr('opacity', 1);
+    nodeEl.selectAll('text').attr('opacity', 1);
   });
 }
 
