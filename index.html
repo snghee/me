@@ -397,7 +397,7 @@ const menuData = {
   "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md", "📊 접속 통계":"INTRO_STATS" },
   "구글드라이브": null,
   "옵시디안":    null,
-  "문서":              { "✏️ 새 문서 작성":"NEW_DOC", "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
+  "파일":              { "새 문서 작성":"NEW_DOC", "삭제":"DELETE_FILE", "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
 };
 
 const contentEl = document.getElementById('content');
@@ -796,6 +796,7 @@ async function loadFile(filePath, itemName, folder) {
   if (filePath==='STATS')       { renderStats(folder,itemName); return; }
   if (filePath==='INTRO_STATS') { renderIntroStats(); return; }
   if (filePath==='NEW_DOC')     { renderNewDoc(); return; }
+  if (filePath==='DELETE_FILE') { showDeleteDialog(); return; }
   try {
     const r = await fetch(filePath);
     if (!r.ok) throw new Error(`파일 없음: ${filePath}`);
@@ -1670,6 +1671,206 @@ async function saveToGithub(name, folder) {
 
   // 저장 다이얼로그 열기
   showSaveDialog(name, folder);
+}
+
+async function showDeleteDialog() {
+  document.getElementById('delete-dialog-overlay')?.remove();
+
+  // 토큰 확인
+  let token = localStorage.getItem('gh_write_token');
+  if (!token) {
+    token = prompt('GitHub Token 입력 (최초 1회):');
+    if (!token) return;
+    localStorage.setItem('gh_write_token', token);
+  }
+
+  // 파일 트리 로드
+  let tree = [];
+  try { tree = await ghGetTree(); } catch(e) { showToast('❌ 파일 목록 로드 실패', true); return; }
+
+  const files = tree
+    .filter(f => !f.path.startsWith('.'))
+    .map(f => {
+      const parts = f.path.split('/');
+      const name  = parts[parts.length - 1];
+      const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '루트';
+      return { name, path: f.path, folder, sha: f.sha };
+    });
+
+  // 폴더별 그룹화
+  const grouped = {};
+  files.forEach(f => {
+    if (!grouped[f.folder]) grouped[f.folder] = [];
+    grouped[f.folder].push(f);
+  });
+
+  // 다이얼로그 생성
+  const overlay = document.createElement('div');
+  overlay.id = 'delete-dialog-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;border-radius:12px;width:460px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);';
+
+  // 헤더
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;';
+  const htitle = document.createElement('h3');
+  htitle.textContent = '파일 삭제';
+  htitle.style.cssText = 'font-size:16px;color:#1e293b;margin:0;';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;padding:0 4px;';
+  closeBtn.onclick = () => overlay.remove();
+  header.appendChild(htitle);
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  // 트리 영역
+  const treeWrap = document.createElement('div');
+  treeWrap.style.cssText = 'flex:1;overflow-y:auto;padding:12px;';
+
+  let selectedFile = null;
+
+  const renderTree = () => {
+    treeWrap.innerHTML = '';
+
+    // 루트 파일 먼저
+    if (grouped['루트']) {
+      grouped['루트'].forEach(f => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:14px;color:#334155;gap:8px;';
+        row.innerHTML = '<span style="color:#64748b;font-size:13px;">📄</span>' + f.name;
+        row.addEventListener('click', () => {
+          treeWrap.querySelectorAll('[data-selected]').forEach(el => {
+            el.removeAttribute('data-selected');
+            el.style.background = '';
+            el.style.color = '#334155';
+          });
+          row.dataset.selected = '1';
+          row.style.background = '#fee2e2';
+          row.style.color = '#dc2626';
+          selectedFile = f;
+          delBtn.disabled = false;
+          delBtn.style.background = '#dc2626';
+          delBtn.style.borderColor = '#dc2626';
+        });
+        treeWrap.appendChild(row);
+      });
+    }
+
+    // 하위 폴더
+    Object.keys(grouped).sort().filter(fol => fol !== '루트').forEach(fol => {
+      // 폴더 헤더
+      const folRow = document.createElement('div');
+      folRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:13px;color:#64748b;font-weight:600;cursor:pointer;user-select:none;';
+      const arrow = document.createElement('span');
+      arrow.textContent = '▶';
+      arrow.style.cssText = 'font-size:10px;transition:transform .15s;display:inline-block;';
+      folRow.appendChild(arrow);
+      folRow.appendChild(document.createTextNode('📁 ' + fol));
+
+      const folFiles = document.createElement('div');
+      folFiles.style.display = 'block';
+
+      folRow.addEventListener('click', () => {
+        const open = folFiles.style.display !== 'none';
+        folFiles.style.display = open ? 'none' : 'block';
+        arrow.style.transform = open ? '' : 'rotate(90deg)';
+      });
+      arrow.style.transform = 'rotate(90deg)';
+
+      grouped[fol].forEach(f => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;padding:7px 10px 7px 28px;border-radius:6px;cursor:pointer;font-size:14px;color:#334155;gap:8px;';
+        row.innerHTML = '<span style="color:#64748b;font-size:13px;">📄</span>' + f.name;
+        row.addEventListener('click', () => {
+          treeWrap.querySelectorAll('[data-selected]').forEach(el => {
+            el.removeAttribute('data-selected');
+            el.style.background = '';
+            el.style.color = '#334155';
+          });
+          row.dataset.selected = '1';
+          row.style.background = '#fee2e2';
+          row.style.color = '#dc2626';
+          selectedFile = f;
+          delBtn.disabled = false;
+          delBtn.style.background = '#dc2626';
+          delBtn.style.borderColor = '#dc2626';
+        });
+        folFiles.appendChild(row);
+      });
+
+      treeWrap.appendChild(folRow);
+      treeWrap.appendChild(folFiles);
+    });
+  };
+
+  renderTree();
+  box.appendChild(treeWrap);
+
+  // 푸터
+  const footer = document.createElement('div');
+  footer.style.cssText = 'padding:14px 20px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '취소';
+  cancelBtn.style.cssText = 'padding:8px 18px;border:1px solid #e2e8f0;border-radius:7px;background:white;cursor:pointer;font-size:14px;';
+  cancelBtn.onclick = () => overlay.remove();
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '삭제';
+  delBtn.disabled = true;
+  delBtn.style.cssText = 'padding:8px 18px;border:1px solid #e2e8f0;border-radius:7px;background:#f1f5f9;color:#94a3b8;cursor:not-allowed;font-size:14px;font-weight:600;';
+  delBtn.onclick = async () => {
+    if (!selectedFile) return;
+    if (!confirm(`"${selectedFile.path}" 을 삭제하시겠습니까?`)) return;
+
+    delBtn.disabled = true;
+    delBtn.textContent = '삭제 중...';
+
+    try {
+      // SHA 최신값 조회
+      const metaR = await fetch(
+        `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${selectedFile.path.split('/').map(encodeURIComponent).join('/')}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+        { cache: 'no-store' }
+      );
+      if (!metaR.ok) throw new Error('파일 정보 조회 실패');
+      const meta = await metaR.json();
+
+      const r = await fetch(
+        `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${selectedFile.path.split('/').map(encodeURIComponent).join('/')}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: `Delete ${selectedFile.name}`, sha: meta.sha, branch: GITHUB_BRANCH })
+        }
+      );
+      if (!r.ok) { const e = await r.json(); throw new Error(e.message || '삭제 실패'); }
+
+      overlay.remove();
+      showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
+
+      // 현재 열린 파일이 삭제된 경우 대시보드로
+      if (_currentFilePath === selectedFile.path) {
+        _currentFilePath = null;
+        _currentFileSha  = null;
+        _currentRawContent = '';
+        showDashboard();
+      }
+    } catch(e) {
+      showToast('❌ ' + e.message, true);
+      delBtn.disabled = false;
+      delBtn.textContent = '삭제';
+    }
+  };
+
+  footer.appendChild(cancelBtn);
+  footer.appendChild(delBtn);
+  box.appendChild(footer);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 async function showSaveDialog(name, folder) {
