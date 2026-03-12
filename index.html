@@ -1786,20 +1786,19 @@ async function confirmSaveDialog() {
     _currentFilePath   = targetPath;
     _currentFileSha    = result.content.sha;
     _currentFileName   = filename;
-    _currentFileFolder = selectedFolder === '/' ? '루트' : selectedFolder;
+    _currentFileFolder = (selectedFolder === '/' || selectedFolder === '루트') ? '루트' : selectedFolder;
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
-    // 저장 직후 GitHub API 반영까지 잠시 대기 후 재로드
+
+    // 저장 성공 → result에서 직접 내용 가져와 즉시 반영
+    try {
+      let fresh = atob(result.content.content.replace(/\n/g,''));
+      try { fresh = decodeURIComponent(escape(fresh)); } catch(e2) {}
+      _currentRawContent = fresh;
+    } catch(e2) {
+      // base64 디코딩 실패 시 현재 내용 유지
+    }
     showToast('✅ 저장 완료!');
-    setTimeout(async () => {
-      try {
-        const updatedMeta = await ghGetFileMeta(_currentFilePath);
-        _currentFileSha = updatedMeta.sha;
-        let fresh = atob(updatedMeta.content.replace(/\n/g,''));
-        try { fresh = decodeURIComponent(escape(fresh)); } catch(e2) {}
-        _currentRawContent = fresh;
-        renderEditor(_currentFileName, _currentFileFolder);
-      } catch(e2) { /* 재로드 실패해도 무시 */ }
-    }, 1500);
+    renderEditor(_currentFileName, _currentFileFolder);
   } catch(e) {
     showToast('❌ 오류: ' + e.message + ' / path:' + (typeof targetPath !== 'undefined' ? targetPath : '?'), true);
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
