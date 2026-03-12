@@ -96,28 +96,23 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   display:flex; align-items:center; gap:8px;
   padding:10px 0 14px; border-bottom:1px solid #e8edf2; margin-bottom:16px; flex-wrap:wrap;
 }
-.editor-toolbar-btn {
-  background:#f1f5f9; border:1px solid #e2e8f0; border-radius:5px;
-  padding:5px 10px; font-size:12px; cursor:pointer; color:#475569;
-  display:flex; align-items:center; gap:4px; white-space:nowrap;
-}
-.editor-toolbar-btn:hover { background:#e2e8f0; }
 .editor-toolbar-sep { width:1px; height:20px; background:#e2e8f0; margin:0 2px; }
-.editor-mode-btn {
-  padding:5px 14px; border-radius:5px; font-size:12px; cursor:pointer;
-  border:1px solid #e2e8f0;
-}
-.editor-mode-btn.active { background:#3498db; color:white; border-color:#3498db; }
-.editor-mode-btn:not(.active) { background:#f1f5f9; color:#475569; }
+.editor-toolbar-btn,
+.editor-mode-btn,
 .editor-save-btn {
-  padding:6px 18px; background:#22c55e; color:white;
-  border:none; border-radius:5px; font-size:13px; font-weight:600;
-  cursor:pointer; display:flex; align-items:center; gap:6px;
+  padding:5px 14px; border-radius:5px; font-size:12px; cursor:pointer;
+  border:1px solid #e2e8f0; background:#f1f5f9; color:#475569;
+  white-space:nowrap; font-weight:500;
 }
-.editor-save-btn:hover { background:#16a34a; }
-.editor-save-btn:disabled { background:#94a3b8; cursor:not-allowed; }
+.editor-toolbar-btn:hover,
+.editor-mode-btn:not(.active):hover { background:#e2e8f0; }
+.editor-mode-btn.active { background:#3498db; color:white; border-color:#3498db; }
+.editor-save-btn { background:#3498db; color:white; border-color:#3498db; font-weight:600; }
+.editor-save-btn:hover { background:#2980b9; border-color:#2980b9; }
+.editor-save-btn:disabled { background:#94a3b8; border-color:#94a3b8; cursor:not-allowed; }
 .editor-pane {
   width:100%; padding:16px; font-size:14px; line-height:1.8;
+  background:white;
   border:1px solid #e2e8f0; border-radius:8px; resize:none;
   font-family:'D2Coding','Fira Code',monospace; color:#1e293b;
   background:#fafafa; outline:none; box-sizing:border-box;
@@ -693,7 +688,7 @@ async function populateServiceMenu(dd) {
           const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${text}</pre>`;
           recordDownload(f.name, f.id);
           contentEl.className='content markdown-body';
-          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">⬇️ 다운로드</a>${html}</div>`;
+          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">자료실(구글드라이브) > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
         } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
       });
         item.style.paddingLeft='28px';
@@ -837,10 +832,10 @@ function renderNewDoc() {
 
       <!-- 툴바 -->
       <div class="editor-toolbar">
-        <button class="editor-mode-btn active"   id="ndoc-btn-edit"    onclick="setNewDocMode('edit')">✏️ 편집</button>
-        <button class="editor-mode-btn"          id="ndoc-btn-split"   onclick="setNewDocMode('split')">⬛ 분할</button>
-        <button class="editor-mode-btn"          id="ndoc-btn-preview" onclick="setNewDocMode('preview')">👁 미리보기</button>
-        <button class="editor-save-btn"          id="ndoc-save-btn"    onclick="saveNewDoc()">💾 저장</button>
+        <button class="editor-mode-btn active"   id="ndoc-btn-edit"    onclick="setNewDocMode('edit')">편집</button>
+        <button class="editor-mode-btn"          id="ndoc-btn-split"   onclick="setNewDocMode('split')">분할</button>
+        <button class="editor-mode-btn"          id="ndoc-btn-preview" onclick="setNewDocMode('preview')">미리보기</button>
+        <button class="editor-save-btn"          id="ndoc-save-btn"    onclick="saveNewDoc()">저장</button>
         <div class="editor-toolbar-sep"></div>
         <select id="ndoc-folder-select"
           style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;cursor:pointer">
@@ -965,10 +960,10 @@ function renderNewDoc() {
         throw new Error(err.message || '저장 실패');
       }
       showToast(`✅ "${filePath}" 저장 완료!`);
-      if (btn) { btn.disabled=false; btn.innerHTML='💾 저장'; }
+      if (btn) { btn.disabled=false; btn.innerHTML='저장'; }
     } catch(e) {
       showToast('❌ ' + e.message, true);
-      if (btn) { btn.disabled=false; btn.innerHTML='💾 저장'; }
+      if (btn) { btn.disabled=false; btn.innerHTML='저장'; }
     }
   };
 
@@ -983,10 +978,10 @@ function renderNewDoc() {
     <div class="breadcrumb">문서 > 새 문서 작성</div>
     <h2 style="margin-bottom:12px">✏️ 새 문서 작성</h2>
     <div class="editor-toolbar">
-      <button class="editor-mode-btn active" id="nd-btn-edit"    onclick="ndSetMode('edit')">✏️ 편집</button>
-      <button class="editor-mode-btn"        id="nd-btn-split"   onclick="ndSetMode('split')">⬛ 분할</button>
-      <button class="editor-mode-btn"        id="nd-btn-preview" onclick="ndSetMode('preview')">👁 미리보기</button>
-      <button class="editor-save-btn"        id="nd-save-btn"    onclick="saveNewDoc()">💾 저장</button>
+      <button class="editor-mode-btn active" id="nd-btn-edit"    onclick="ndSetMode('edit')">편집</button>
+      <button class="editor-mode-btn"        id="nd-btn-split"   onclick="ndSetMode('split')">분할</button>
+      <button class="editor-mode-btn"        id="nd-btn-preview" onclick="ndSetMode('preview')">미리보기</button>
+      <button class="editor-save-btn"        id="nd-save-btn"    onclick="saveNewDoc()">저장</button>
     </div>
     <div id="nd-body">
       <div class="split-wrap" id="nd-split-wrap" style="display:none">
@@ -1119,7 +1114,7 @@ async function _saveNewDoc_unused() {
     { method:'PUT', headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(payload) }
   );
 
-  if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
 
   if (r.ok) {
     const result = await r.json();
@@ -1162,7 +1157,7 @@ function renderStats(folder, itemName) {
         <div class="stats-card"><div class="stats-card-num">${dlStats.length}</div><div class="stats-card-label">파일 종류</div></div>
       </div>
       <div class="stats-log-wrap">
-        <div class="stats-log-title">⬇️ 다운로드 통계 <button class="stats-reset-btn" onclick="resetAllStats()">🗑️ 초기화</button></div>
+        <div class="stats-log-title">다운로드 통계 <button class="stats-reset-btn" onclick="resetAllStats()">🗑️ 초기화</button></div>
         <table style="width:100%;border-collapse:collapse">
           <tr style="background:#f8fafc;font-size:12px;color:#64748b"><th style="padding:8px 14px;text-align:left">파일명</th><th style="padding:8px 14px;text-align:center">횟수</th><th style="padding:8px 14px;text-align:left">마지막</th></tr>
           ${dlRows}
@@ -1566,19 +1561,19 @@ function renderEditor(name, folder) {
     b.onclick = () => setEditorMode(mode, name, folder);
     return b;
   };
-  toolbarEl.appendChild(mkModeBtn('👁 미리보기', 'preview'));
-  toolbarEl.appendChild(mkModeBtn('✏️ 편집', 'edit'));
+  toolbarEl.appendChild(mkModeBtn('미리보기', 'preview'));
+  toolbarEl.appendChild(mkModeBtn('편집', 'edit'));
 
   const splitBtn = document.createElement('button');
   splitBtn.className = 'editor-mode-btn' + (isSplit ? ' active' : '');
-  splitBtn.textContent = '⬛ 분할';
+  splitBtn.textContent = '분할';
   splitBtn.onclick = () => setEditorMode(isSplit ? 'preview' : 'split', name, folder);
   toolbarEl.appendChild(splitBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'editor-save-btn';
   saveBtn.id = 'save-btn';
-  saveBtn.textContent = '💾 저장';
+  saveBtn.textContent = '저장';
   saveBtn.onclick = () => saveToGithub(_currentFileName, _currentFileFolder);
   toolbarEl.appendChild(saveBtn);
 
@@ -1588,7 +1583,7 @@ function renderEditor(name, folder) {
 
   const dlBtn = document.createElement('button');
   dlBtn.className = 'editor-toolbar-btn';
-  dlBtn.textContent = '⬇️ 다운로드';
+  dlBtn.textContent = '다운로드';
   dlBtn.onclick = () => downloadObsidianFile(_currentFilePath, name);
   toolbarEl.appendChild(dlBtn);
 
@@ -1711,7 +1706,7 @@ async function showSaveDialog(name, folder) {
 
   // 제목
   const title = document.createElement('h3');
-  title.textContent = '💾 저장 위치 선택';
+  title.textContent = '저장 위치 선택';
   title.style.cssText = 'margin-bottom:20px;font-size:18px;color:#1e293b;';
   box.appendChild(title);
 
@@ -1755,7 +1750,7 @@ async function showSaveDialog(name, folder) {
   cancelBtn.onclick = () => overlay.remove();
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.textContent = '💾 저장';
+  confirmBtn.textContent = '저장';
   confirmBtn.style.cssText = 'padding:10px 20px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer;font-size:14px;font-weight:600;';
   confirmBtn.onclick = async () => {
     const selFolder = folSelect.value;
@@ -1801,12 +1796,12 @@ async function showSaveDialog(name, folder) {
       _currentFileName   = filename;
       _currentFileFolder = isRoot ? '루트' : selFolder;
 
-      if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
       showToast('✅ 저장 완료!');
       renderEditor(_currentFileName, _currentFileFolder);
     } catch(e) {
       showToast('❌ ' + e.message, true);
-      if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
     }
   };
 
