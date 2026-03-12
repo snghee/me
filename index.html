@@ -1781,8 +1781,10 @@ async function confirmSaveDialog() {
       throw new Error(err.message || '저장 실패');
     }
     const result = await r.json();
-    _currentFilePath = targetPath;       // 경로 갱신
-    _currentFileSha = result.content.sha; // SHA 갱신
+    _currentFilePath   = targetPath;
+    _currentFileSha    = result.content.sha;
+    _currentFileName   = filename;
+    _currentFileFolder = selectedFolder === '/' ? '루트' : selectedFolder;
     if(btn){ btn.disabled=false; btn.innerHTML='💾 저장'; }
     // 저장 직후 GitHub API 반영까지 잠시 대기 후 재로드
     showToast('✅ 저장 완료!');
@@ -1793,7 +1795,7 @@ async function confirmSaveDialog() {
         let fresh = atob(updatedMeta.content.replace(/\n/g,''));
         try { fresh = decodeURIComponent(escape(fresh)); } catch(e2) {}
         _currentRawContent = fresh;
-        renderEditor(name, folder);
+        renderEditor(_currentFileName, _currentFileFolder);
       } catch(e2) { /* 재로드 실패해도 무시 */ }
     }, 1500);
   } catch(e) {
