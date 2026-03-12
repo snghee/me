@@ -1643,170 +1643,148 @@ async function saveToGithub(name, folder) {
 }
 
 async function showSaveDialog(name, folder) {
-  // 기존 다이얼로그 제거
   document.getElementById('save-dialog-overlay')?.remove();
 
-  const overlay = document.createElement('div');
-  overlay.className = 'save-dialog-overlay';
-  overlay.id = 'save-dialog-overlay';
+  // 토큰 확인
+  let token = localStorage.getItem('gh_write_token');
+  if (!token) {
+    token = prompt('GitHub Token 입력 (최초 1회):');
+    if (!token) return;
+    localStorage.setItem('gh_write_token', token);
+  }
 
-  overlay.innerHTML = `
-  <div class="save-dialog">
-    <div class="save-dialog-header">
-      💾 저장 위치 선택
-      <button onclick="document.getElementById('save-dialog-overlay').remove()">✕</button>
-    </div>
-    <div class="save-dialog-body">
-      <div class="save-dialog-label">📁 폴더 선택</div>
-      <div class="save-dialog-tree" id="save-tree"><div style="padding:12px;color:#94a3b8;font-size:13px">⏳ 불러오는 중...</div></div>
-      <div class="save-dialog-label">📄 파일명</div>
-      <input class="save-dialog-filename" id="save-filename" value="${name}" placeholder="파일명.md">
-      <div class="save-dialog-footer">
-        <button class="save-dialog-cancel" onclick="document.getElementById('save-dialog-overlay').remove()">취소</button>
-        <button class="save-dialog-confirm" onclick="confirmSaveDialog()">💾 저장</button>
-      </div>
-    </div>
-  </div>`;
-
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
-
-  // 폴더 트리 로드
+  // 폴더 목록 로드
+  let folders = [];
   try {
     const tree = await ghGetTree();
-    const folders = [...new Set(tree.map(f => f.path.includes('/') ? f.path.split('/')[0] : '/'))];
-    const treeEl = document.getElementById('save-tree');
-    treeEl.innerHTML = '';
-
-    // 루트 선택 옵션
-    const rootEl = document.createElement('div');
-    rootEl.className = 'save-tree-folder' + (folder === '/' ? ' selected' : '');
-    rootEl.innerHTML = '📂 / (루트)';
-    rootEl.dataset.folder = '/';
-    rootEl.onclick = () => selectSaveFolder('/');
-    treeEl.appendChild(rootEl);
-
-    // 각 폴더와 하위 파일
-    folders.filter(f => f !== '/').forEach(fol => {
-      const folEl = document.createElement('div');
-      folEl.className = 'save-tree-folder' + (folder === fol ? ' selected' : '');
-      folEl.innerHTML = `📁 ${fol}`;
-      folEl.dataset.folder = fol;
-      folEl.onclick = () => selectSaveFolder(fol);
-      treeEl.appendChild(folEl);
-
-      // 해당 폴더의 파일들
-      tree.filter(f => f.path.startsWith(fol + '/') && !f.path.slice(fol.length+1).includes('/'))
-        .forEach(f => {
-          const fname = f.path.split('/').pop(); // path에서 파일명 추출
-          const fileEl = document.createElement('div');
-          fileEl.className = 'save-tree-file' + (f.path === _currentFilePath ? ' selected' : '');
-          fileEl.innerHTML = `📄 ${fname}`;
-          fileEl.onclick = () => {
-            selectSaveFolder(fol);
-            document.getElementById('save-filename').value = fname;
-            document.querySelectorAll('.save-tree-file').forEach(el => el.classList.remove('selected'));
-            fileEl.classList.add('selected');
-          };
-          treeEl.appendChild(fileEl);
-        });
+    const folderSet = new Set();
+    tree.forEach(f => {
+      if (f.path.includes('/')) folderSet.add(f.path.split('/')[0]);
     });
-
-    // 현재 폴더 선택 상태 유지
-    selectSaveFolder(folder);
+    folders = ['루트', ...Array.from(folderSet).sort()];
   } catch(e) {
-    document.getElementById('save-tree').innerHTML = `<div style="padding:12px;color:#e74c3c">❌ ${e.message}</div>`;
+    folders = ['루트'];
   }
-}
 
-function selectSaveFolder(fol) {
-  document.querySelectorAll('.save-tree-folder').forEach(el => {
-    el.classList.toggle('selected', el.dataset.folder === fol);
+  // 다이얼로그 생성
+  const overlay = document.createElement('div');
+  overlay.id = 'save-dialog-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;border-radius:12px;width:420px;max-width:90vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.4);';
+
+  // 제목
+  const title = document.createElement('h3');
+  title.textContent = '💾 저장 위치 선택';
+  title.style.cssText = 'margin-bottom:20px;font-size:18px;color:#1e293b;';
+  box.appendChild(title);
+
+  // 폴더 선택
+  const folLabel = document.createElement('div');
+  folLabel.textContent = '📁 폴더';
+  folLabel.style.cssText = 'font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;';
+  box.appendChild(folLabel);
+
+  const folSelect = document.createElement('select');
+  folSelect.style.cssText = 'width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:15px;margin-bottom:16px;outline:none;box-sizing:border-box;';
+  folders.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    if (f === folder || (f === '루트' && !folder)) opt.selected = true;
+    folSelect.appendChild(opt);
   });
-  document.getElementById('save-dialog-overlay').dataset.selectedFolder = fol;
-}
+  box.appendChild(folSelect);
 
-async function confirmSaveDialog() {
-  const overlay = document.getElementById('save-dialog-overlay');
-  if (!overlay) return;
+  // 파일명
+  const fileLabel = document.createElement('div');
+  fileLabel.textContent = '📄 파일명';
+  fileLabel.style.cssText = 'font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;';
+  box.appendChild(fileLabel);
 
-  const selectedFolder = overlay.dataset.selectedFolder || '';
-  const filename = (document.getElementById('save-filename')?.value || '').trim();
+  const fileInput = document.createElement('input');
+  fileInput.type = 'text';
+  fileInput.value = name.endsWith('.md') ? name : name + '.md';
+  fileInput.placeholder = '파일명.md';
+  fileInput.style.cssText = 'width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:15px;margin-bottom:20px;outline:none;box-sizing:border-box;';
+  box.appendChild(fileInput);
 
-  if (!filename) { alert('파일명을 입력해주세요.'); return; }
+  // 버튼
+  const footer = document.createElement('div');
+  footer.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
 
-  // 경로 조합 (슬래시 인코딩 안 되도록 경로 부분별로 인코딩)
-  const isRoot = !selectedFolder || selectedFolder === '/' || selectedFolder === '루트';
-  const pathParts = isRoot ? [filename] : [selectedFolder, filename];
-  const targetPath = pathParts.join('/');
-  const encodedPath = pathParts.map(p => encodeURIComponent(p)).join('/');
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '취소';
+  cancelBtn.style.cssText = 'padding:10px 20px;border:1px solid #e2e8f0;border-radius:8px;background:white;cursor:pointer;font-size:14px;';
+  cancelBtn.onclick = () => overlay.remove();
 
-  overlay.remove();
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = '💾 저장';
+  confirmBtn.style.cssText = 'padding:10px 20px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer;font-size:14px;font-weight:600;';
+  confirmBtn.onclick = async () => {
+    const selFolder = folSelect.value;
+    const filename  = fileInput.value.trim();
+    if (!filename) { alert('파일명을 입력해주세요.'); return; }
 
-  const btn = document.getElementById('save-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 저장 중...'; }
+    const isRoot    = selFolder === '루트' || !selFolder;
+    const targetPath = isRoot ? filename : `${selFolder}/${filename}`;
+    const encodedPath = isRoot
+      ? encodeURIComponent(filename)
+      : `${encodeURIComponent(selFolder)}/${encodeURIComponent(filename)}`;
 
-  try {
-    let token = localStorage.getItem('gh_write_token');
-    if (!token) {
-      token = prompt('GitHub Token 입력 (최초 1회, 이후 자동 저장):');
-      if (!token) { if(btn){btn.disabled=false;btn.innerHTML='💾 저장';} return; }
-      localStorage.setItem('gh_write_token', token);
-    }
+    overlay.remove();
+    const btn = document.getElementById('save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 저장 중...'; }
 
-    // 현재 textarea 내용 우선
-    const ta = document.getElementById('editor-textarea');
-    if (ta) _currentRawContent = ta.value;
+    try {
+      const ta = document.getElementById('editor-textarea');
+      if (ta) _currentRawContent = ta.value;
+      const encoded = btoa(unescape(encodeURIComponent(_currentRawContent)));
 
-    const encoded = btoa(unescape(encodeURIComponent(_currentRawContent)));
-
-    // SHA 조회 (기존 파일이면 필요)
-    let saveSha = (targetPath === _currentFilePath) ? _currentFileSha : undefined;
-    if (!saveSha) {
-      try {
-        const existMeta = await fetch(
-          `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}?ref=${GITHUB_BRANCH}`,
-          { cache: 'no-store' }
-        );
-        if (existMeta.ok) {
-          const existJson = await existMeta.json();
-          saveSha = existJson.sha;
-        }
-      } catch(e) { saveSha = undefined; }
-    }
-
-    const bodyObj = { message: `Update ${targetPath}`, content: encoded, branch: GITHUB_BRANCH };
-    if (saveSha) bodyObj.sha = saveSha;
-
-    const r = await fetch(
-      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}`,
-      {
-        method: 'PUT',
-        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyObj)
+      // SHA 조회
+      let saveSha = (targetPath === _currentFilePath) ? _currentFileSha : undefined;
+      if (!saveSha) {
+        try {
+          const chk = await fetch(`${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}?ref=${GITHUB_BRANCH}`, {cache:'no-store'});
+          if (chk.ok) { const j = await chk.json(); saveSha = j.sha; }
+        } catch(e) {}
       }
-    );
 
-    if (!r.ok) {
-      const err = await r.json();
-      throw new Error(err.message || '저장 실패');
+      const bodyObj = { message: `Update ${targetPath}`, content: encoded, branch: GITHUB_BRANCH };
+      if (saveSha) bodyObj.sha = saveSha;
+
+      const r = await fetch(
+        `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}`,
+        { method:'PUT', headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(bodyObj) }
+      );
+      if (!r.ok) { const err = await r.json(); throw new Error(err.message || '저장 실패'); }
+
+      const result = await r.json();
+      _currentFilePath   = targetPath;
+      _currentFileSha    = result.content.sha;
+      _currentFileName   = filename;
+      _currentFileFolder = isRoot ? '루트' : selFolder;
+
+      if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
+      showToast('✅ 저장 완료!');
+      renderEditor(_currentFileName, _currentFileFolder);
+    } catch(e) {
+      showToast('❌ ' + e.message, true);
+      if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
     }
+  };
 
-    const result = await r.json();
-    _currentFilePath   = targetPath;
-    _currentFileSha    = result.content.sha;
-    _currentFileName   = filename;
-    _currentFileFolder = isRoot ? '루트' : selectedFolder;
-
-    if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
-    showToast('✅ 저장 완료!');
-    renderEditor(_currentFileName, _currentFileFolder);
-
-  } catch(e) {
-    showToast('❌ ' + e.message, true);
-    if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
-  }
+  footer.appendChild(cancelBtn);
+  footer.appendChild(confirmBtn);
+  box.appendChild(footer);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  fileInput.focus();
+  fileInput.select();
 }
+
 
 function showToast(msg, isError=false) {
   const el = document.createElement('div');
