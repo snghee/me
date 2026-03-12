@@ -200,22 +200,19 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 
 /* ── 히어로 ── */
 .content-area > #dashboard, .content-area > .markdown-body > #dashboard { display:flex; flex-direction:column; height:100%; }
-#dashboard { display:flex; flex-direction:column; height:100%; }
+#dashboard { display:flex; flex-direction:column; height:100%; flex:1; min-height:0; }
 .hero-graph {
-  width:100%; flex:1;
+  flex:1;
   min-height:0;
   background:#0d1117;
   position:relative;
+  width:100%;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
-@media (max-width:768px) {
-  .hero-graph { height:100%; }
-}
-.graph-overlay-title {
-  position:absolute; top:16px; left:20px;
-  color:rgba(255,255,255,0.5); font-size:11px; font-weight:600;
-  letter-spacing:2px; text-transform:uppercase; pointer-events:none;
-  z-index:5;
+.graph-overlay-label {
+  position:absolute; top:14px; left:18px; z-index:10; pointer-events:none;
+  color:rgba(255,255,255,0.25); font-size:11px; font-weight:600;
+  letter-spacing:2px; text-transform:uppercase;
 }
 
 /* ── 통계 바 ── */
@@ -252,9 +249,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-btn:hover { background:rgba(255,255,255,0.2); }
 .graph-tooltip { position:fixed; background:rgba(0,0,0,0.8); color:white; padding:4px 8px; border-radius:4px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
 
-/* ── 히어로 풀스크린 그래프 ── */
-.hero-graph { opacity:0; transition:opacity 1s ease; }
-.hero-graph.loaded { opacity:1; }
+.hero-graph { opacity:1; }
 
 /* ── 통계 패널 (소개 메뉴 하단) ── */
 .stats-panel { background:#f8fafc; border:1px solid #e8edf2; border-radius:8px; padding:20px; margin-top:28px; }
@@ -271,9 +266,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 @media (max-width:768px) {
   .navbar-menu { display:none; }
   .hamburger { display:block; }
-  .hero-section { padding:40px 20px 36px; min-height:60vh !important; }
-  .hero-deco { display:none; }
-  .hero-title { font-size:24px; }
   .main-content { padding:24px 20px; }
   .two-col { grid-template-columns:1fr; }
   .file-inner { padding:20px 16px; }
@@ -304,7 +296,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 <div class="content markdown-body" id="content">
   <div id="dashboard">
     <div class="hero-graph" id="graph-wrap">
-      <div class="graph-overlay-title">SBJ DNX · Obsidian Graph</div>
+      <div class="graph-overlay-label">SBJ DNX · Obsidian Notes</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
@@ -411,7 +403,7 @@ function showDashboard() {
   contentEl.innerHTML = `
   <div id="dashboard">
     <div class="hero-graph" id="graph-wrap">
-      <div class="graph-overlay-title">SBJ DNX · Obsidian Graph</div>
+      <div class="graph-overlay-label">SBJ DNX · Obsidian Notes</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
@@ -1311,20 +1303,28 @@ async function initObsidianGraph() {
         return { id: f.path.replace(/\.md$/, ''), name, path: f.path, folder, tags: [] };
       });
 
-    // 최대 20개 파일에서 frontmatter tags 병렬 로드
-    const loadLimit = Math.min(rawNodes.length, 20);
+    // 최대 30개 파일에서 frontmatter tags 병렬 로드
+    const loadLimit = Math.min(rawNodes.length, 30);
     await Promise.allSettled(rawNodes.slice(0, loadLimit).map(async n => {
       try {
         const raw = await ghGetRawFile(n.path);
         const fm = raw.match(/^---[\s\S]*?---/);
         if (fm) {
-          const tagLine = fm[0].match(/tags:\s*([^\n]+)/i);
-          if (tagLine) {
-            n.tags = tagLine[1].replace(/[\[\]]/g,'').split(/[,\s]+/).map(t=>t.trim()).filter(Boolean);
-          }
-          const tagBlock = fm[0].match(/tags:[\s\S]*?(?=\n\w|---)/i);
-          if (tagBlock && !tagLine) {
-            n.tags = [...tagBlock[0].matchAll(/- (.+)/g)].map(m=>m[1].trim());
+          const fmText = fm[0];
+          // [tag1, tag2] 인라인 배열 형식
+          const inlineArr = fmText.match(/^tags:\s*\[([^\]]+)\]/im);
+          if (inlineArr) {
+            n.tags = inlineArr[1].split(',').map(t=>t.trim().replace(/^['"]|['"]$/g,'')).filter(Boolean);
+          } else {
+            // block 리스트 형식 (- tag)
+            const blockM = fmText.match(/^tags:\s*\n((?:[ \t]*-[ \t]*[^\n]+\n?)+)/im);
+            if (blockM) {
+              n.tags = [...blockM[1].matchAll(/^[ \t]*-[ \t]*(.+)/gm)].map(m=>m[1].trim());
+            } else {
+              // 공백/쉼표 구분 인라인
+              const plainM = fmText.match(/^tags:\s*([^\n\[{]+)/im);
+              if (plainM) n.tags = plainM[1].split(/[,\s]+/).map(t=>t.trim()).filter(Boolean);
+            }
           }
         }
       } catch(e) {}
@@ -1337,28 +1337,24 @@ async function initObsidianGraph() {
       return;
     }
 
-    // 링크: 1) 같은 폴더끼리 2) 같은 태그끼리
+    // 링크: 폴더 기반 + 태그 기반 (중복 방지)
     const links = [];
     const linkSet = new Set();
     const addLink = (a, b) => {
       const key = [a,b].sort().join('||');
       if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b }); }
     };
+    // 같은 폴더끼리 연결
     const folderMap = {};
-    nodes.forEach(n => {
-      if (!folderMap[n.folder]) folderMap[n.folder] = [];
-      folderMap[n.folder].push(n.id);
-    });
+    nodes.forEach(n => { if(!folderMap[n.folder]) folderMap[n.folder]=[]; folderMap[n.folder].push(n.id); });
     Object.values(folderMap).forEach(ids => {
-      for (let i = 0; i < ids.length - 1; i++) addLink(ids[i], ids[i+1]);
+      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
     });
-    // 태그 기반 연결
+    // 같은 태그끼리 연결
     const tagMap = {};
-    nodes.forEach(n => {
-      (n.tags||[]).forEach(t => { if(!tagMap[t]) tagMap[t]=[]; tagMap[t].push(n.id); });
-    });
+    nodes.forEach(n => { (n.tags||[]).forEach(t=>{ if(!tagMap[t]) tagMap[t]=[]; tagMap[t].push(n.id); }); });
     Object.values(tagMap).forEach(ids => {
-      for (let i = 0; i < ids.length - 1; i++) addLink(ids[i], ids[i+1]);
+      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
     });
 
     drawGraph(svg, nodes, links);
@@ -1370,12 +1366,13 @@ async function initObsidianGraph() {
 
 function drawGraph(svgEl, nodes, links) {
   const wrap = svgEl.parentElement;
-  const W = wrap.offsetWidth  || 800;
-  const H = wrap.offsetHeight || 600;
+  // requestAnimationFrame으로 실제 크기 보장
+  const W = wrap.offsetWidth  || window.innerWidth  || 800;
+  const H = wrap.offsetHeight || window.innerHeight || 600;
   const tooltip = document.getElementById('graph-tooltip');
 
   const folders = [...new Set(nodes.map(n => n.folder))];
-  const palette = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657','#39d353','#79c0ff','#ff7b72'];
+  const palette = ['#58a6ff','#3fb950','#ff7b72','#d2a8ff','#ffa657','#79c0ff','#56d364','#f78166'];
   const colors  = d3.scaleOrdinal(palette).domain(folders);
 
   const svg = d3.select(svgEl).attr('width', W).attr('height', H);
@@ -1384,144 +1381,137 @@ function drawGraph(svgEl, nodes, links) {
   // 배경
   svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#0d1117');
 
-  const g = svg.append('g');
+  // 글로우 필터
+  const defs = svg.append('defs');
+  const filter = defs.append('filter').attr('id', 'node-glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+  filter.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
+  const feMerge = filter.append('feMerge');
+  feMerge.append('feMergeNode').attr('in','blur');
+  feMerge.append('feMergeNode').attr('in','SourceGraphic');
 
-  // Zoom
-  const zoom = d3.zoom().scaleExtent([0.3, 4]).on('zoom', e => g.attr('transform', e.transform));
+  // 줌 레이어
+  const g = svg.append('g');
+  const zoom = d3.zoom().scaleExtent([0.2, 5]).on('zoom', e => g.attr('transform', e.transform));
   svg.call(zoom);
   graphZoom = zoom;
   graphSvg  = svg;
 
-  // Force simulation - 옵시디안 스타일
-  const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
-      // 같은 폴더면 가깝게, 다른 폴더면 멀게
-      const s = nodes.find(n => n.id === (d.source.id||d.source));
-      const t = nodes.find(n => n.id === (d.target.id||d.target));
-      return (s && t && s.folder === t.folder) ? 60 : 120;
-    }).strength(0.4))
-    .force('charge', d3.forceManyBody().strength(-180))
-    .force('center', d3.forceCenter(W/2, H/2).strength(0.05))
-    .force('collision', d3.forceCollide(28))
-    .force('x', d3.forceX(W/2).strength(0.02))
-    .force('y', d3.forceY(H/2).strength(0.02));
+  // 링크 수 기반 노드 크기 계산
+  const linkCount = {};
+  nodes.forEach(n => { linkCount[n.id] = 0; });
+  links.forEach(l => {
+    const sid = l.source.id || l.source;
+    const tid = l.target.id || l.target;
+    if (linkCount[sid] !== undefined) linkCount[sid]++;
+    if (linkCount[tid] !== undefined) linkCount[tid]++;
+  });
+  const nodeR = d => 4 + Math.min((linkCount[d.id] || 0) * 1.5, 10);
 
-  // 링크 레이어
-  const linkG = g.append('g').attr('class','links');
-  const link = linkG.selectAll('line').data(links).join('line')
-    .attr('stroke', d => {
-      const s = d.source.folder || '';
-      const t = d.target.folder || '';
-      return s === t ? colors(s) : 'rgba(255,255,255,0.12)';
+  // Force simulation
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id)
+      .distance(l => {
+        const sf = nodes.find(n => n.id === (l.source.id||l.source));
+        const tf = nodes.find(n => n.id === (l.target.id||l.target));
+        return (sf && tf && sf.folder === tf.folder) ? 70 : 140;
+      })
+      .strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-220).distanceMax(400))
+    .force('center', d3.forceCenter(W/2, H/2).strength(0.08))
+    .force('collision', d3.forceCollide(d => nodeR(d) + 18))
+    .force('x', d3.forceX(W/2).strength(0.03))
+    .force('y', d3.forceY(H/2).strength(0.03));
+
+  // 링크
+  const linkEl = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', l => {
+      const sf = nodes.find(n => n.id === (l.source.id||l.source));
+      const tf = nodes.find(n => n.id === (l.target.id||l.target));
+      return (sf && tf && sf.folder === tf.folder)
+        ? colors(sf.folder) : 'rgba(255,255,255,0.15)';
     })
-    .attr('stroke-opacity', 0.4)
+    .attr('stroke-opacity', 0.35)
     .attr('stroke-width', 1);
 
-  // 노드 레이어
-  const nodeG = g.append('g').attr('class','nodes');
-  const node = nodeG.selectAll('g').data(nodes).join('g')
-    .style('cursor','pointer')
+  // 노드 그룹
+  const nodeEl = g.append('g').selectAll('g').data(nodes).join('g')
+    .style('cursor', 'pointer')
     .call(d3.drag()
-      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
-      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
-      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }))
-    .on('mouseover', (e,d) => {
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
+    .on('mouseover', (e, d) => {
       tooltip.style.display = 'block';
-      const tags = d.tags && d.tags.length ? ' 🏷 ' + d.tags.join(', ') : '';
-      tooltip.textContent = d.name + (d.folder !== '루트' ? ' (' + d.folder + ')' : '') + tags;
-      // 연결된 노드 하이라이트
-      link.attr('stroke-opacity', l =>
-        (l.source.id===d.id||l.target.id===d.id) ? 0.9 : 0.08
-      ).attr('stroke-width', l =>
-        (l.source.id===d.id||l.target.id===d.id) ? 2 : 1
-      );
-      node.selectAll('circle').attr('opacity', n2 => {
-        if (n2.id === d.id) return 1;
-        const linked = links.some(l =>
-          (l.source.id===d.id && l.target.id===n2.id) ||
-          (l.target.id===d.id && l.source.id===n2.id)
-        );
-        return linked ? 1 : 0.2;
-      });
+      const tagStr = d.tags && d.tags.length ? '  🏷 ' + d.tags.join(', ') : '';
+      tooltip.textContent = d.name + (d.folder !== '루트' ? '  (' + d.folder + ')' : '') + tagStr;
+      // 연결 하이라이트
+      linkEl
+        .attr('stroke-opacity', l => (l.source.id===d.id||l.target.id===d.id) ? 0.9 : 0.05)
+        .attr('stroke-width',   l => (l.source.id===d.id||l.target.id===d.id) ? 2.5 : 1);
+      nodeEl.selectAll('circle.outer')
+        .attr('opacity', n2 => {
+          if (n2.id === d.id) return 1;
+          return links.some(l => (l.source.id===d.id&&l.target.id===n2.id)||(l.target.id===d.id&&l.source.id===n2.id)) ? 1 : 0.15;
+        });
     })
-    .on('mousemove', e => { tooltip.style.left=(e.clientX+14)+'px'; tooltip.style.top=(e.clientY-30)+'px'; })
+    .on('mousemove', e => {
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top  = (e.clientY - 32) + 'px';
+    })
     .on('mouseout', () => {
       tooltip.style.display = 'none';
-      link.attr('stroke-opacity', 0.4).attr('stroke-width', 1);
-      node.selectAll('circle').attr('opacity', 1);
+      linkEl.attr('stroke-opacity', 0.35).attr('stroke-width', 1);
+      nodeEl.selectAll('circle.outer').attr('opacity', 1);
     })
-    .on('click', (e,d) => { e.stopPropagation(); loadObsidianFileByPath(d.path, d.name, d.folder); });
+    .on('click', (e, d) => { e.stopPropagation(); loadObsidianFileByPath(d.path, d.name, d.folder); });
 
-  // 글로우 필터
-  const defs = svg.append('defs');
-  const filter = defs.append('filter').attr('id','glow');
-  filter.append('feGaussianBlur').attr('stdDeviation','3').attr('result','coloredBlur');
-  const merge = filter.append('feMerge');
-  merge.append('feMergeNode').attr('in','coloredBlur');
-  merge.append('feMergeNode').attr('in','SourceGraphic');
-
-  // 노드 원 (외부 링 + 내부 원)
-  node.append('circle')
-    .attr('r', d => {
-      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
-      return 5 + Math.min(linkCount * 2, 8);
-    })
+  // 외부 원 (반투명 후광)
+  nodeEl.append('circle').attr('class', 'outer')
+    .attr('r', d => nodeR(d) + 4)
     .attr('fill', d => colors(d.folder))
-    .attr('fill-opacity', 0.15)
+    .attr('fill-opacity', 0.12)
     .attr('stroke', d => colors(d.folder))
-    .attr('stroke-width', 1.5)
-    .attr('stroke-opacity', 0.6);
+    .attr('stroke-width', 1)
+    .attr('stroke-opacity', 0.4);
 
-  node.append('circle')
-    .attr('r', d => {
-      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
-      return 3 + Math.min(linkCount * 1.5, 6);
-    })
+  // 내부 원 (메인 노드)
+  nodeEl.append('circle').attr('class', 'inner')
+    .attr('r', d => nodeR(d))
     .attr('fill', d => colors(d.folder))
-    .attr('filter','url(#glow)');
+    .attr('filter', 'url(#node-glow)');
 
   // 파일명 텍스트
-  node.append('text')
-    .attr('dy', d => {
-      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
-      return (5 + Math.min(linkCount * 2, 8)) + 14;
-    })
-    .attr('text-anchor','middle')
-    .attr('font-size', d => {
-      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
-      return (10 + Math.min(linkCount, 3)) + 'px';
-    })
-    .attr('fill','rgba(255,255,255,0.75)')
-    .attr('pointer-events','none')
-    .text(d => d.name.length > 14 ? d.name.slice(0,14)+'…' : d.name);
+  nodeEl.append('text').attr('class', 'node-label')
+    .attr('dy', d => nodeR(d) + 14)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', d => Math.min(11 + (linkCount[d.id]||0), 13) + 'px')
+    .attr('fill', 'rgba(255,255,255,0.8)')
+    .attr('pointer-events', 'none')
+    .text(d => d.name.length > 15 ? d.name.slice(0, 15) + '…' : d.name);
 
   // 태그 텍스트 (파일명 아래)
-  node.append('text')
-    .attr('dy', d => {
-      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
-      return (5 + Math.min(linkCount * 2, 8)) + 26;
-    })
-    .attr('text-anchor','middle')
-    .attr('font-size','8px')
-    .attr('fill','rgba(255,255,255,0.35)')
-    .attr('pointer-events','none')
-    .text(d => d.tags && d.tags.length ? d.tags.slice(0,2).join(' · ') : '');
+  nodeEl.append('text').attr('class', 'tag-label')
+    .attr('dy', d => nodeR(d) + 26)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '9px')
+    .attr('fill', 'rgba(255,255,255,0.35)')
+    .attr('pointer-events', 'none')
+    .text(d => d.tags && d.tags.length ? d.tags.slice(0, 3).map(t => '#'+t).join(' ') : '');
 
-  // 시뮬레이션 tick
+  // tick
   sim.on('tick', () => {
-    link
+    linkEl
       .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-    node.attr('transform', d => `translate(${d.x},${d.y})`);
+    nodeEl.attr('transform', d => `translate(${d.x},${d.y})`);
   });
 
-  // 배경 클릭시 하이라이트 해제
+  // 배경 클릭 → 하이라이트 해제
   svg.on('click', () => {
-    link.attr('stroke-opacity', 0.4).attr('stroke-width', 1);
-    node.selectAll('circle').attr('opacity', 1);
+    linkEl.attr('stroke-opacity', 0.35).attr('stroke-width', 1);
+    nodeEl.selectAll('circle.outer').attr('opacity', 1);
   });
 }
-
 
 /* ── 옵시디안 에디터 상태 ── */
 let _editorMode = 'preview'; // 'preview' | 'edit' | 'split'
