@@ -1444,7 +1444,8 @@ function drawGraph(svgEl, nodes, links) {
       .join(enter => {
         const g = enter.append('g').attr('class','gn').style('cursor','pointer');
         g.append('circle');
-        g.append('text').attr('pointer-events','none').attr('text-anchor','middle');
+        g.append('text').attr('class','node-name').attr('pointer-events','none').attr('text-anchor','middle');
+        g.append('text').attr('class','node-link').attr('pointer-events','none').attr('text-anchor','middle');
         g.on('mouseover', (e,d) => { tooltip.style.display='block'; tooltip.textContent=`${d.n.name} (${d.n.folder})`; })
          .on('mousemove', (e)   => { tooltip.style.left=(e.clientX+12)+'px'; tooltip.style.top=(e.clientY-28)+'px'; })
          .on('mouseout',  ()    => { tooltip.style.display='none'; })
@@ -1460,13 +1461,23 @@ function drawGraph(svgEl, nodes, links) {
       .attr('stroke',  d => d3.color(colors(d.n.folder))?.darker(0.5) || '#fff')
       .attr('stroke-width', 0.8);
 
-    gnodes.select('text')
+    // 파일명 (위쪽)
+    gnodes.select('text.node-name')
       .attr('x', d => d.px)
-      .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 10)
-      .attr('font-size', d => 16 + ((d.pz+1)/2)*6)
-      .attr('fill','rgba(255,255,255,0.75)')
-      .attr('opacity', d => (d.pz > 0 ? 1 : 0))
-      .text(d => d.n.name.length > 10 ? d.n.name.slice(0,10)+'…' : d.n.name);
+      .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 12)
+      .attr('font-size', d => Math.round(9 + ((d.pz+1)/2)*4) + 'px')
+      .attr('fill','rgba(255,255,255,0.9)')
+      .attr('opacity', d => (d.pz > -0.2 ? 1 : 0))
+      .text(d => d.n.name.length > 12 ? d.n.name.slice(0,12)+'…' : d.n.name);
+
+    // 링크(경로) (아래쪽, 작게)
+    gnodes.select('text.node-link')
+      .attr('x', d => d.px)
+      .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 24)
+      .attr('font-size', '9px')
+      .attr('fill','rgba(255,255,255,0.45)')
+      .attr('opacity', d => (d.pz > 0.2 ? 1 : 0))
+      .text(d => d.n.folder !== '루트' ? d.n.folder + '/' + d.n.name : d.n.name);
   }
 
   function animate() { rotY += 0.004; render(); animId = requestAnimationFrame(animate); }
@@ -1850,6 +1861,13 @@ async function showDeleteDialog() {
 
       overlay.remove();
       showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
+
+      // 옵시디안 드롭다운 캐시 초기화 (다음 열 때 새로 로드)
+      const obsDD = document.getElementById('dd-2');
+      if (obsDD) obsDD.innerHTML = '';
+
+      // 그래프 갱신
+      initObsidianGraph();
 
       // 현재 열린 파일이 삭제된 경우 대시보드로
       if (_currentFilePath === selectedFile.path) {
