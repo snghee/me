@@ -201,42 +201,22 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 /* ── 히어로 ── */
 .content-area > #dashboard, .content-area > .markdown-body > #dashboard { display:flex; flex-direction:column; height:100%; }
 #dashboard { display:flex; flex-direction:column; height:100%; }
-.hero-section {
-  position:relative;
-  background:linear-gradient(135deg,#0a2342 0%,#1a3a5c 50%,#0d3b6e 100%);
-  color:white;
-  padding:12px 60px 10px;
-  display:flex; align-items:center;
-  overflow:hidden;
-  flex-shrink:0;
-}
-.hero-section::before {
-  content:''; position:absolute; top:-60px; right:-60px;
-  width:400px; height:400px;
-  background:radial-gradient(circle,rgba(52,152,219,.15) 0%,transparent 70%);
-  pointer-events:none;
-}
-.hero-inner {
-  position:relative; z-index:2; max-width:480px;
-  display:flex; flex-direction:column; gap:0;
-}
 .hero-graph {
   width:100%; flex:1;
   min-height:0;
-  background:#1a1a2e;
+  background:#0d1117;
   position:relative;
 }
 .hero-graph svg { width:100%; height:100%; display:block; }
 @media (max-width:768px) {
-  .hero-section { padding:40px 20px 36px; min-height:auto; }
-  .hero-graph { height:320px; }
+  .hero-graph { height:100%; }
 }
-.hero-tag { display:inline-block; font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64b5f6; border:1px solid rgba(100,181,246,.4); padding:4px 12px; border-radius:20px; margin-bottom:6px; }
-.hero-title { font-size:22px; font-weight:700; line-height:1.25; margin-bottom:14px; }
-.hero-title span { color:#64b5f6; }
-.hero-subtitle { font-size:13px; color:rgba(255,255,255,.6); line-height:1.7; max-width:520px; }
-.hero-deco { position:absolute; right:60px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:10px; opacity:.12; }
-.hero-deco-line { height:2px; background:white; border-radius:2px; }
+.graph-overlay-title {
+  position:absolute; top:16px; left:20px;
+  color:rgba(255,255,255,0.5); font-size:11px; font-weight:600;
+  letter-spacing:2px; text-transform:uppercase; pointer-events:none;
+  z-index:5;
+}
 
 /* ── 통계 바 ── */
 .stats-bar { background:#f5f7fa; border-bottom:1px solid #e8edf2; padding:14px 60px; display:flex; align-items:center; gap:40px; }
@@ -323,15 +303,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 <div class="content-area">
 <div class="content markdown-body" id="content">
   <div id="dashboard">
-    <div class="hero-section">
-      <div class="hero-inner">
-        <div class="hero-tag">Internal Document Portal</div>
-        <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
-        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
-      </div>
-    </div>
-    <!-- 그래프: 히어로 아래 전체 너비 -->
     <div class="hero-graph" id="graph-wrap">
+      <div class="graph-overlay-title">SBJ DNX · Obsidian Graph</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
@@ -340,12 +313,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
     </div>
-    <!-- 통계/로그는 숨겨진 상태로 유지 (소개 메뉴에서 표시) -->
-    <div id="stat-visits" style="display:none">0</div>
-    <div id="stat-downloads" style="display:none">0</div>
-    <div id="stat-files" style="display:none">0</div>
-    <div id="visit-log" style="display:none"></div>
-    <div id="download-log" style="display:none"></div>
   </div>
 </div>
 </div><!-- content-area -->
@@ -443,14 +410,8 @@ function showDashboard() {
   contentEl.className = 'content markdown-body';
   contentEl.innerHTML = `
   <div id="dashboard">
-    <div class="hero-section">
-      <div class="hero-inner">
-        <div class="hero-tag">Internal Document Portal</div>
-        <div class="hero-title">SBJ DNX<br><span>내부 자료 포털</span></div>
-        <div class="hero-subtitle">디지털 변혁을 추구하는 SBJ DNX의 내부 문서 관리 시스템입니다.<br>상단 메뉴에서 자료를 검색하고 열람하세요.</div>
-      </div>
-    </div>
     <div class="hero-graph" id="graph-wrap">
+      <div class="graph-overlay-title">SBJ DNX · Obsidian Graph</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
@@ -1376,18 +1337,28 @@ async function initObsidianGraph() {
       return;
     }
 
-    // 링크는 파일 내용 없이 폴더 기반으로 생성 (API 호출 최소화)
+    // 링크: 1) 같은 폴더끼리 2) 같은 태그끼리
     const links = [];
+    const linkSet = new Set();
+    const addLink = (a, b) => {
+      const key = [a,b].sort().join('||');
+      if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b }); }
+    };
     const folderMap = {};
     nodes.forEach(n => {
       if (!folderMap[n.folder]) folderMap[n.folder] = [];
       folderMap[n.folder].push(n.id);
     });
-    // 같은 폴더 내 노드끼리 연결 (최대 3개)
     Object.values(folderMap).forEach(ids => {
-      for (let i = 0; i < Math.min(ids.length-1, 3); i++) {
-        links.push({ source: ids[i], target: ids[i+1] });
-      }
+      for (let i = 0; i < ids.length - 1; i++) addLink(ids[i], ids[i+1]);
+    });
+    // 태그 기반 연결
+    const tagMap = {};
+    nodes.forEach(n => {
+      (n.tags||[]).forEach(t => { if(!tagMap[t]) tagMap[t]=[]; tagMap[t].push(n.id); });
+    });
+    Object.values(tagMap).forEach(ids => {
+      for (let i = 0; i < ids.length - 1; i++) addLink(ids[i], ids[i+1]);
     });
 
     drawGraph(svg, nodes, links);
@@ -1398,154 +1369,159 @@ async function initObsidianGraph() {
 }
 
 function drawGraph(svgEl, nodes, links) {
-  const rect = svgEl.getBoundingClientRect();
-  const W = rect.width  || svgEl.parentElement.offsetWidth  || 800;
-  const H = rect.height || svgEl.parentElement.offsetHeight || 320;
+  const wrap = svgEl.parentElement;
+  const W = wrap.offsetWidth  || 800;
+  const H = wrap.offsetHeight || 600;
   const tooltip = document.getElementById('graph-tooltip');
 
   const folders = [...new Set(nodes.map(n => n.folder))];
-  const palette = ['#64b5f6','#81c784','#ffb74d','#f06292','#ce93d8','#4dd0e1','#fff176','#a5d6a7'];
+  const palette = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657','#39d353','#79c0ff','#ff7b72'];
   const colors  = d3.scaleOrdinal(palette).domain(folders);
 
   const svg = d3.select(svgEl).attr('width', W).attr('height', H);
   svg.selectAll('*').remove();
 
-  const R  = Math.min(W, H) * 0.38;
-  const cx = W / 2, cy = H / 2;
+  // 배경
+  svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#0d1117');
 
-  // 피보나치 구 배치 - 노드를 구면에 고르게 분포
-  const phi = Math.PI * (3 - Math.sqrt(5));
-  nodes.forEach((n, i) => {
-    const y3d = 1 - (i / Math.max(nodes.length - 1, 1)) * 2;
-    const r3d = Math.sqrt(Math.max(0, 1 - y3d * y3d));
-    const theta = phi * i;
-    n._sx = Math.cos(theta) * r3d;
-    n._sy = y3d;
-    n._sz = Math.sin(theta) * r3d;
-  });
+  const g = svg.append('g');
 
-  const nodeById = {};
-  nodes.forEach(n => nodeById[n.id] = n);
+  // Zoom
+  const zoom = d3.zoom().scaleExtent([0.3, 4]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+  graphZoom = zoom;
+  graphSvg  = svg;
 
-  let rotX = 0.3, rotY = 0;
-  let animId = null;
+  // Force simulation - 옵시디안 스타일
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+      // 같은 폴더면 가깝게, 다른 폴더면 멀게
+      const s = nodes.find(n => n.id === (d.source.id||d.source));
+      const t = nodes.find(n => n.id === (d.target.id||d.target));
+      return (s && t && s.folder === t.folder) ? 60 : 120;
+    }).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-180))
+    .force('center', d3.forceCenter(W/2, H/2).strength(0.05))
+    .force('collision', d3.forceCollide(28))
+    .force('x', d3.forceX(W/2).strength(0.02))
+    .force('y', d3.forceY(H/2).strength(0.02));
 
-  const linkLayer = svg.append('g');
-  const nodeLayer = svg.append('g');
+  // 링크 레이어
+  const linkG = g.append('g').attr('class','links');
+  const link = linkG.selectAll('line').data(links).join('line')
+    .attr('stroke', d => {
+      const s = d.source.folder || '';
+      const t = d.target.folder || '';
+      return s === t ? colors(s) : 'rgba(255,255,255,0.12)';
+    })
+    .attr('stroke-opacity', 0.4)
+    .attr('stroke-width', 1);
 
-  function project(n) {
-    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-    const x1 =  n._sx * cosY - n._sz * sinY;
-    const z1 =  n._sx * sinY + n._sz * cosY;
-    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-    const y1 =  n._sy * cosX - z1 * sinX;
-    const z2 =  n._sy * sinX + z1 * cosX;
-    return { px: cx + x1 * R, py: cy + y1 * R, pz: z2 };
-  }
-
-  function render() {
-    const proj = nodes.map(n => ({ n, ...project(n) }));
-    proj.sort((a, b) => a.pz - b.pz);
-
-    // 링크
-    const linkData = links.map(l => {
-      const s = nodeById[l.source?.id || l.source];
-      const t = nodeById[l.target?.id || l.target];
-      if (!s || !t) return null;
-      return { sp: project(s), tp: project(t) };
-    }).filter(Boolean);
-
-    linkLayer.selectAll('line').data(linkData).join('line')
-      .attr('x1', d => d.sp.px).attr('y1', d => d.sp.py)
-      .attr('x2', d => d.tp.px).attr('y2', d => d.tp.py)
-      .attr('stroke', 'rgba(100,181,246,0.2)')
-      .attr('stroke-width', 0.8);
-
-    // 노드
-    const gnodes = nodeLayer.selectAll('g.gn').data(proj, d => d.n.id)
-      .join(enter => {
-        const g = enter.append('g').attr('class','gn').style('cursor','pointer');
-        g.append('circle');
-        g.append('text').attr('class','node-name').attr('pointer-events','none').attr('text-anchor','middle');
-        g.append('text').attr('class','node-link').attr('pointer-events','none').attr('text-anchor','middle');
-        g.on('mouseover', (e,d) => {
-          tooltip.style.display='block';
-          const tags = d.n.tags && d.n.tags.length ? '  🏷 ' + d.n.tags.join(', ') : '';
-          tooltip.textContent=`${d.n.name} (${d.n.folder})${tags}`;
-        })
-         .on('mousemove', (e)   => { tooltip.style.left=(e.clientX+12)+'px'; tooltip.style.top=(e.clientY-28)+'px'; })
-         .on('mouseout',  ()    => { tooltip.style.display='none'; })
-         .on('click', (e,d)    => loadObsidianFileByPath(d.n.path, d.n.name, d.n.folder));
-        return g;
+  // 노드 레이어
+  const nodeG = g.append('g').attr('class','nodes');
+  const node = nodeG.selectAll('g').data(nodes).join('g')
+    .style('cursor','pointer')
+    .call(d3.drag()
+      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }))
+    .on('mouseover', (e,d) => {
+      tooltip.style.display = 'block';
+      const tags = d.tags && d.tags.length ? ' 🏷 ' + d.tags.join(', ') : '';
+      tooltip.textContent = d.name + (d.folder !== '루트' ? ' (' + d.folder + ')' : '') + tags;
+      // 연결된 노드 하이라이트
+      link.attr('stroke-opacity', l =>
+        (l.source.id===d.id||l.target.id===d.id) ? 0.9 : 0.08
+      ).attr('stroke-width', l =>
+        (l.source.id===d.id||l.target.id===d.id) ? 2 : 1
+      );
+      node.selectAll('circle').attr('opacity', n2 => {
+        if (n2.id === d.id) return 1;
+        const linked = links.some(l =>
+          (l.source.id===d.id && l.target.id===n2.id) ||
+          (l.target.id===d.id && l.source.id===n2.id)
+        );
+        return linked ? 1 : 0.2;
       });
+    })
+    .on('mousemove', e => { tooltip.style.left=(e.clientX+14)+'px'; tooltip.style.top=(e.clientY-30)+'px'; })
+    .on('mouseout', () => {
+      tooltip.style.display = 'none';
+      link.attr('stroke-opacity', 0.4).attr('stroke-width', 1);
+      node.selectAll('circle').attr('opacity', 1);
+    })
+    .on('click', (e,d) => { e.stopPropagation(); loadObsidianFileByPath(d.path, d.name, d.folder); });
 
-    gnodes.select('circle')
-      .attr('cx', d => d.px).attr('cy', d => d.py)
-      .attr('r',  d => 3 + ((d.pz + 1) / 2) * 7)
-      .attr('fill',    d => colors(d.n.folder))
-      .attr('opacity', d => 0.25 + ((d.pz + 1) / 2) * 0.75)
-      .attr('stroke',  d => d3.color(colors(d.n.folder))?.darker(0.5) || '#fff')
-      .attr('stroke-width', 0.8);
+  // 글로우 필터
+  const defs = svg.append('defs');
+  const filter = defs.append('filter').attr('id','glow');
+  filter.append('feGaussianBlur').attr('stdDeviation','3').attr('result','coloredBlur');
+  const merge = filter.append('feMerge');
+  merge.append('feMergeNode').attr('in','coloredBlur');
+  merge.append('feMergeNode').attr('in','SourceGraphic');
 
-    // 파일명 (위쪽)
-    gnodes.select('text.node-name')
-      .attr('x', d => d.px)
-      .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 12)
-      .attr('font-size', d => Math.round(9 + ((d.pz+1)/2)*4) + 'px')
-      .attr('fill','rgba(255,255,255,0.9)')
-      .attr('opacity', d => (d.pz > -0.2 ? 1 : 0))
-      .text(d => d.n.name.length > 12 ? d.n.name.slice(0,12)+'…' : d.n.name);
+  // 노드 원 (외부 링 + 내부 원)
+  node.append('circle')
+    .attr('r', d => {
+      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
+      return 5 + Math.min(linkCount * 2, 8);
+    })
+    .attr('fill', d => colors(d.folder))
+    .attr('fill-opacity', 0.15)
+    .attr('stroke', d => colors(d.folder))
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.6);
 
-    // 링크(경로+태그) (아래쪽, 작게)
-    gnodes.select('text.node-link')
-      .attr('x', d => d.px)
-      .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 24)
-      .attr('font-size', '9px')
-      .attr('fill','rgba(255,255,255,0.45)')
-      .attr('opacity', d => (d.pz > 0.2 ? 1 : 0))
-      .text(d => {
-        const path = d.n.folder !== '루트' ? d.n.folder + '/' + d.n.name : d.n.name;
-        const tags = d.n.tags && d.n.tags.length ? ' [' + d.n.tags.slice(0,2).join(',') + ']' : '';
-        return path + tags;
-      });
-  }
+  node.append('circle')
+    .attr('r', d => {
+      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
+      return 3 + Math.min(linkCount * 1.5, 6);
+    })
+    .attr('fill', d => colors(d.folder))
+    .attr('filter','url(#glow)');
 
-  function animate() { rotY += 0.004; render(); animId = requestAnimationFrame(animate); }
-  animate();
+  // 파일명 텍스트
+  node.append('text')
+    .attr('dy', d => {
+      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
+      return (5 + Math.min(linkCount * 2, 8)) + 14;
+    })
+    .attr('text-anchor','middle')
+    .attr('font-size', d => {
+      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
+      return (10 + Math.min(linkCount, 3)) + 'px';
+    })
+    .attr('fill','rgba(255,255,255,0.75)')
+    .attr('pointer-events','none')
+    .text(d => d.name.length > 14 ? d.name.slice(0,14)+'…' : d.name);
 
-  // 마우스 드래그 회전 / 클릭 시 멈춤 토글
-  let drag=false, dx0, dy0, rx0, ry0, moved=false, paused=false;
-  svgEl.addEventListener('mousedown', e => {
-    drag=true; moved=false;
-    dx0=e.clientX; dy0=e.clientY; rx0=rotX; ry0=rotY;
-    cancelAnimationFrame(animId);
+  // 태그 텍스트 (파일명 아래)
+  node.append('text')
+    .attr('dy', d => {
+      const linkCount = links.filter(l => l.source.id===d.id||l.target.id===d.id).length;
+      return (5 + Math.min(linkCount * 2, 8)) + 26;
+    })
+    .attr('text-anchor','middle')
+    .attr('font-size','8px')
+    .attr('fill','rgba(255,255,255,0.35)')
+    .attr('pointer-events','none')
+    .text(d => d.tags && d.tags.length ? d.tags.slice(0,2).join(' · ') : '');
+
+  // 시뮬레이션 tick
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
   });
-  window.addEventListener('mousemove', e => {
-    if (!drag) return;
-    moved = true;
-    rotY=ry0+(e.clientX-dx0)*0.005; rotX=rx0+(e.clientY-dy0)*0.005; render();
-  });
-  window.addEventListener('mouseup', () => {
-    if (!drag) return;
-    drag = false;
-    if (!moved) {
-      // 드래그 없이 클릭만 → 멈춤/재생 토글
-      paused = !paused;
-      if (!paused) animate();
-    } else {
-      // 드래그 후 손 뗌 → 멈춤 상태가 아니면 자동 회전 재개
-      if (!paused) animate();
-    }
-  });
 
-  // 터치 회전
-  svgEl.addEventListener('touchstart', e => { drag=true; dx0=e.touches[0].clientX; dy0=e.touches[0].clientY; rx0=rotX; ry0=rotY; cancelAnimationFrame(animId); },{passive:true});
-  svgEl.addEventListener('touchmove',  e => { if(!drag) return; rotY=ry0+(e.touches[0].clientX-dx0)*0.005; rotX=rx0+(e.touches[0].clientY-dy0)*0.005; render(); },{passive:true});
-  svgEl.addEventListener('touchend',   () => { drag=false; animate(); });
-
-  graphSvg = svg;
-  graphZoom = null;
+  // 배경 클릭시 하이라이트 해제
+  svg.on('click', () => {
+    link.attr('stroke-opacity', 0.4).attr('stroke-width', 1);
+    node.selectAll('circle').attr('opacity', 1);
+  });
 }
+
 
 /* ── 옵시디안 에디터 상태 ── */
 let _editorMode = 'preview'; // 'preview' | 'edit' | 'split'
@@ -2069,9 +2045,9 @@ function showToast(msg, isError=false) {
   setTimeout(() => el.remove(), 3000);
 }
 
-function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.scaleBy, 1.4); }
-function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.scaleBy, 0.7); }
-function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().call(graphZoom.transform, d3.zoomIdentity); }
+function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 1.4); }
+function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 0.7); }
+function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().duration(500).call(graphZoom.transform, d3.zoomIdentity); }
 
 </script>
 </body>
