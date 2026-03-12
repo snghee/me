@@ -965,36 +965,17 @@ function renderNewDoc() {
 
 function renderNewDoc() {
   contentEl.className = 'content markdown-body';
-  const editorH = `calc(100vh - 300px)`;
+  const editorH = `calc(100vh - 240px)`;
   contentEl.innerHTML = `
   <div class="file-inner">
     <div class="breadcrumb">문서 > 새 문서 작성</div>
     <h2 style="margin-bottom:12px">✏️ 새 문서 작성</h2>
-
     <div class="editor-toolbar">
-      <button class="editor-mode-btn active" id="nd-btn-edit"   onclick="ndSetMode('edit')">✏️ 편집</button>
-      <button class="editor-mode-btn"        id="nd-btn-split"  onclick="ndSetMode('split')">⬛ 분할</button>
+      <button class="editor-mode-btn active" id="nd-btn-edit"    onclick="ndSetMode('edit')">✏️ 편집</button>
+      <button class="editor-mode-btn"        id="nd-btn-split"   onclick="ndSetMode('split')">⬛ 분할</button>
       <button class="editor-mode-btn"        id="nd-btn-preview" onclick="ndSetMode('preview')">👁 미리보기</button>
-      <button class="editor-save-btn" onclick="saveNewDoc()">💾 저장</button>
-      <div class="editor-toolbar-sep"></div>
-      <span style="font-size:12px;color:#94a3b8">저장 위치: snghee/Obsidian</span>
+      <button class="editor-save-btn"        id="nd-save-btn"    onclick="saveNewDoc()">💾 저장</button>
     </div>
-
-    <!-- 제목 + 폴더 입력 -->
-    <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
-      <input id="nd-folder" placeholder="폴더명 (예: 업무)" style="
-        width:160px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px;
-        font-size:14px; outline:none; box-sizing:border-box;
-      ">
-      <span style="color:#94a3b8">/</span>
-      <input id="nd-title" placeholder="파일명 (확장자 제외)" style="
-        flex:1; padding:8px 12px; border:1px solid #e2e8f0; border-radius:6px;
-        font-size:14px; outline:none; box-sizing:border-box;
-      ">
-      <span style="color:#94a3b8;font-size:13px">.md</span>
-    </div>
-
-    <!-- 편집/분할 영역 -->
     <div id="nd-body">
       <div class="split-wrap" id="nd-split-wrap" style="display:none">
         <textarea class="editor-pane" id="nd-textarea" placeholder="마크다운으로 작성하세요..."
@@ -1009,8 +990,7 @@ function renderNewDoc() {
     </div>
   </div>`;
 
-  // 제목 입력창 포커스
-  setTimeout(() => document.getElementById('nd-folder')?.focus(), 50);
+  setTimeout(() => document.getElementById('nd-textarea-single')?.focus(), 50);
 }
 
 let _ndMode = 'edit';
@@ -1058,15 +1038,44 @@ function ndSyncPreview() {
 }
 
 async function saveNewDoc() {
-  const folder = (document.getElementById('nd-folder')?.value || '').trim();
-  const title  = (document.getElementById('nd-title')?.value  || '').trim();
+  // _ndMode 기준으로 textarea 선택
+  let body = '';
+  if (_ndMode === 'split') {
+    body = document.getElementById('nd-textarea')?.value || '';
+  } else {
+    body = document.getElementById('nd-textarea-single')?.value || '';
+  }
+
+  // 둘 다 비어있으면 fallback
+  if (!body.trim()) {
+    body = document.getElementById('nd-textarea-single')?.value
+        || document.getElementById('nd-textarea')?.value
+        || '';
+  }
+
+  if (!body.trim()) { showToast('❌ 내용을 입력하세요', true); return; }
+
+  _currentRawContent = body;
+  _currentFilePath = null;
+  _currentFileSha  = null;
+  showSaveDialog('새문서.md', '루트');
+}
+
+async function _saveNewDoc_unused() {
+  const folder = '';
+  const title  = '';
   const taSplit  = document.getElementById('nd-textarea');
   const taSingle = document.getElementById('nd-textarea-single');
   const body = (taSplit && taSplit.style.display !== 'none') ? taSplit.value : (taSingle ? taSingle.value : '');
 
   if (!title) { showToast('❌ 파일명을 입력하세요', true); return; }
 
-  const filePath = folder ? `${folder}/${title}.md` : `${title}.md`;
+  const fileName   = title.endsWith('.md') ? title : title + '.md';
+  const filePath   = folder ? `${folder}/${fileName}` : fileName;
+  // 경로 세그먼트별 인코딩 (슬래시 보존)
+  const encodedPath = folder
+    ? `${encodeURIComponent(folder)}/${encodeURIComponent(fileName)}`
+    : encodeURIComponent(fileName);
 
   let token = localStorage.getItem('gh_write_token');
   if (!token) {
@@ -1081,22 +1090,36 @@ async function saveNewDoc() {
   let sha = undefined;
   try {
     const check = await fetch(
-      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(filePath)}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
       { headers: { 'Authorization': `token ${token}` } }
     );
     if (check.ok) { const j = await check.json(); sha = j.sha; }
   } catch(e) {}
 
-  const payload = { message: `Create ${title}.md`, content: encoded, branch: GITHUB_BRANCH };
-  if (sha) { payload.message = `Update ${title}.md`; payload.sha = sha; }
+  const payload = { message: sha ? `Update ${fileName}` : `Create ${fileName}`, content: encoded, branch: GITHUB_BRANCH };
+  if (sha) payload.sha = sha;
+
+  const btn = document.querySelector('#new-doc-wrap .editor-save-btn, .editor-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 저장 중...'; }
 
   const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(filePath)}`,
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}`,
     { method:'PUT', headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(payload) }
   );
 
+  if (btn) { btn.disabled = false; btn.innerHTML = '💾 저장'; }
+
   if (r.ok) {
+    const result = await r.json();
     showToast(`✅ 저장 완료: ${filePath}`);
+    // 저장 후 에디터로 전환
+    _currentFilePath   = filePath;
+    _currentFileSha    = result.content.sha;
+    _currentFileName   = fileName;
+    _currentFileFolder = folder || '루트';
+    _currentRawContent = body;
+    _editorMode = 'preview';
+    renderEditor(_currentFileName, _currentFileFolder);
   } else {
     const err = await r.json();
     showToast('❌ ' + (err.message || '저장 실패'), true);
