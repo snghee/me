@@ -1340,14 +1340,36 @@ async function initObsidianGraph() {
   try {
     // GitHub 트리에서 노드 생성
     const tree = await ghGetTree();
-    const nodes = tree
+    // 파일 목록 + frontmatter tags 추출 (병렬 로드, 최대 20개)
+    const rawNodes = tree
       .filter(f => !f.path.startsWith('.'))
       .map(f => {
         const parts = f.path.split('/');
         const name   = parts[parts.length-1].replace(/\.md$/, '');
         const folder = parts.length > 1 ? parts.slice(0,-1).join('/') : '루트';
-        return { id: f.path.replace(/\.md$/, ''), name, path: f.path, folder };
+        return { id: f.path.replace(/\.md$/, ''), name, path: f.path, folder, tags: [] };
       });
+
+    // 최대 20개 파일에서 frontmatter tags 병렬 로드
+    const loadLimit = Math.min(rawNodes.length, 20);
+    await Promise.allSettled(rawNodes.slice(0, loadLimit).map(async n => {
+      try {
+        const raw = await ghGetRawFile(n.path);
+        const fm = raw.match(/^---[\s\S]*?---/);
+        if (fm) {
+          const tagLine = fm[0].match(/tags:\s*([^\n]+)/i);
+          if (tagLine) {
+            n.tags = tagLine[1].replace(/[\[\]]/g,'').split(/[,\s]+/).map(t=>t.trim()).filter(Boolean);
+          }
+          const tagBlock = fm[0].match(/tags:[\s\S]*?(?=\n\w|---)/i);
+          if (tagBlock && !tagLine) {
+            n.tags = [...tagBlock[0].matchAll(/- (.+)/g)].map(m=>m[1].trim());
+          }
+        }
+      } catch(e) {}
+    }));
+
+    const nodes = rawNodes;
 
     if (!nodes.length) {
       svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="13" dy=".3em">노트가 없습니다</text>';
@@ -1446,7 +1468,11 @@ function drawGraph(svgEl, nodes, links) {
         g.append('circle');
         g.append('text').attr('class','node-name').attr('pointer-events','none').attr('text-anchor','middle');
         g.append('text').attr('class','node-link').attr('pointer-events','none').attr('text-anchor','middle');
-        g.on('mouseover', (e,d) => { tooltip.style.display='block'; tooltip.textContent=`${d.n.name} (${d.n.folder})`; })
+        g.on('mouseover', (e,d) => {
+          tooltip.style.display='block';
+          const tags = d.n.tags && d.n.tags.length ? '  🏷 ' + d.n.tags.join(', ') : '';
+          tooltip.textContent=`${d.n.name} (${d.n.folder})${tags}`;
+        })
          .on('mousemove', (e)   => { tooltip.style.left=(e.clientX+12)+'px'; tooltip.style.top=(e.clientY-28)+'px'; })
          .on('mouseout',  ()    => { tooltip.style.display='none'; })
          .on('click', (e,d)    => loadObsidianFileByPath(d.n.path, d.n.name, d.n.folder));
@@ -1470,14 +1496,18 @@ function drawGraph(svgEl, nodes, links) {
       .attr('opacity', d => (d.pz > -0.2 ? 1 : 0))
       .text(d => d.n.name.length > 12 ? d.n.name.slice(0,12)+'…' : d.n.name);
 
-    // 링크(경로) (아래쪽, 작게)
+    // 링크(경로+태그) (아래쪽, 작게)
     gnodes.select('text.node-link')
       .attr('x', d => d.px)
       .attr('y', d => d.py + 3 + ((d.pz+1)/2)*7 + 24)
       .attr('font-size', '9px')
       .attr('fill','rgba(255,255,255,0.45)')
       .attr('opacity', d => (d.pz > 0.2 ? 1 : 0))
-      .text(d => d.n.folder !== '루트' ? d.n.folder + '/' + d.n.name : d.n.name);
+      .text(d => {
+        const path = d.n.folder !== '루트' ? d.n.folder + '/' + d.n.name : d.n.name;
+        const tags = d.n.tags && d.n.tags.length ? ' [' + d.n.tags.slice(0,2).join(',') + ']' : '';
+        return path + tags;
+      });
   }
 
   function animate() { rotY += 0.004; render(); animId = requestAnimationFrame(animate); }
@@ -1862,20 +1892,15 @@ async function showDeleteDialog() {
       overlay.remove();
       showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
 
-      // 옵시디안 드롭다운 캐시 초기화 (다음 열 때 새로 로드)
+      // 옵시디안 드롭다운 캐시 초기화
       const obsDD = document.getElementById('dd-2');
       if (obsDD) obsDD.innerHTML = '';
 
-      // 그래프 갱신
-      initObsidianGraph();
-
-      // 현재 열린 파일이 삭제된 경우 대시보드로
-      if (_currentFilePath === selectedFile.path) {
-        _currentFilePath = null;
-        _currentFileSha  = null;
-        _currentRawContent = '';
-        showDashboard();
-      }
+      // 현재 파일 상태 초기화 후 대시보드로 이동
+      _currentFilePath   = null;
+      _currentFileSha    = null;
+      _currentRawContent = '';
+      showDashboard();
     } catch(e) {
       showToast('❌ ' + e.message, true);
       delBtn.disabled = false;
