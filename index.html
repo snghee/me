@@ -245,15 +245,14 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-node text { font-size:13px; fill:rgba(255,255,255,0.85); pointer-events:none; }
 .graph-link { stroke:rgba(100,181,246,0.3); stroke-opacity:1; stroke-width:1; }
 .graph-controls { position:absolute; bottom:10px; right:12px; display:flex; gap:5px; z-index:10; align-items:center; }
-.graph-btn { background:rgba(20,20,38,0.82); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.82); padding:5px 11px; border-radius:6px; cursor:pointer; font-size:12px; transition:background .15s,border-color .15s; backdrop-filter:blur(4px); }
+.graph-btn { background:rgba(18,22,35,0.82); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.85); padding:5px 11px; border-radius:6px; cursor:pointer; font-size:12px; transition:background .15s,border-color .15s; backdrop-filter:blur(4px); }
 .graph-btn:hover { background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.38); }
-.graph-btn.pause-btn { min-width:64px; text-align:center; }
-.graph-btn.pause-btn.paused { background:rgba(63,185,80,0.20); border-color:rgba(63,185,80,0.55); color:#56d364; }
-.graph-tooltip { position:fixed; background:rgba(0,0,0,0.8); color:white; padding:4px 8px; border-radius:4px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
+.graph-btn.btn-pause { min-width:68px; }
+.graph-btn.btn-pause.paused { background:rgba(63,185,80,0.22); border-color:rgba(63,185,80,0.6); color:#56d364; }
+.graph-tooltip { position:fixed; background:rgba(0,0,0,0.82); color:white; padding:5px 10px; border-radius:5px; font-size:11px; pointer-events:none; display:none; z-index:99999; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
 .hero-graph { opacity:1; }
-
-@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
 /* ── 통계 패널 (소개 메뉴 하단) ── */
 .stats-panel { background:#f8fafc; border:1px solid #e8edf2; border-radius:8px; padding:20px; margin-top:28px; }
@@ -304,15 +303,11 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
+        <button class="graph-btn btn-pause" id="pause-btn" onclick="toggleSimulation()" title="움직임 켜기/끄기">⏸ 멈춤</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
-    </div>
-  </div>
-</div>
-</div><!-- content-area -->
-</div><!-- main-layout -->
 
 <script>
 /* gapi는 나중에 비동기 로드 - 없어도 메뉴는 동작 */
@@ -411,7 +406,7 @@ function showDashboard() {
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
-        <button class="graph-btn pause-btn" id="pause-btn" onclick="toggleSimulation()" title="클릭: 움직임 켜기/끄기">⏸ 멈춤</button>
+        <button class="graph-btn btn-pause" id="pause-btn" onclick="toggleSimulation()" title="움직임 켜기/끄기">⏸ 멈춤</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -1370,27 +1365,46 @@ async function initObsidianGraph() {
 }
 
 function drawGraph(svgEl, nodes, links) {
+  /* ── 기존 keepAlive 타이머 정리 ── */
+  if (window._graphKeepAliveTimer) { clearTimeout(window._graphKeepAliveTimer); window._graphKeepAliveTimer = null; }
+  graphPaused = false;
+  const pauseBtn = document.getElementById('pause-btn');
+  if (pauseBtn) { pauseBtn.textContent = '⏸ 멈춤'; pauseBtn.classList.remove('paused'); }
+
   const wrap = svgEl.parentElement;
   const W = wrap.offsetWidth  || window.innerWidth  || 900;
   const H = wrap.offsetHeight || window.innerHeight || 600;
   const tooltip = document.getElementById('graph-tooltip');
 
-  /* ── 색상 ── */
-  const FILE_PALETTE = ['#7eb8f7','#6ee7b7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5'];
+  /* ── 색상: 폴더별 팔레트 ── */
+  const FILE_PALETTE = ['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7'];
   const TAG_COLOR  = '#3fb950';
   const TAG_STROKE = '#56d364';
-  const folders    = [...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
-  const folderColor= d3.scaleOrdinal(FILE_PALETTE).domain(folders);
-  const nodeColor  = d => d.isTag ? TAG_COLOR : folderColor(d.folder);
 
-  /* ── SVG ── */
+  const fileFolders = [...new Set(nodes.filter(n => !n.isTag).map(n => n.folder))];
+  const folderColor = d3.scaleOrdinal(FILE_PALETTE).domain(fileFolders);
+  const nodeColor   = d => d.isTag ? TAG_COLOR : folderColor(d.folder);
+
+  /* ── 폴더별 중심점 계산 (균등 원형 배치) ── */
+  const folderCount = fileFolders.length;
+  const folderCenters = {};
+  fileFolders.forEach((fol, i) => {
+    const angle = (2 * Math.PI * i) / Math.max(folderCount, 1) - Math.PI / 2;
+    const radius = Math.min(W, H) * 0.28;
+    folderCenters[fol] = {
+      x: W / 2 + radius * Math.cos(angle),
+      y: H / 2 + radius * Math.sin(angle)
+    };
+  });
+
+  /* ── SVG 초기화 ── */
   const svg = d3.select(svgEl).attr('width', W).attr('height', H);
   svg.selectAll('*').remove();
   svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#0a0d14');
 
   /* ── defs: 글로우 필터 ── */
   const defs = svg.append('defs');
-  const makeGlow = (id, blur) => {
+  const mkGlow = (id, blur) => {
     const f = defs.append('filter').attr('id', id)
       .attr('x','-70%').attr('y','-70%').attr('width','240%').attr('height','240%');
     f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation', blur).attr('result','blur');
@@ -1398,10 +1412,10 @@ function drawGraph(svgEl, nodes, links) {
     m.append('feMergeNode').attr('in','blur');
     m.append('feMergeNode').attr('in','SourceGraphic');
   };
-  makeGlow('gf', 3);   // 파일 노드
-  makeGlow('gt', 5.5); // 태그 노드 (더 강한 글로우)
+  mkGlow('gf', 3);
+  mkGlow('gt', 5);
 
-  /* ── 줌 ── */
+  /* ── 줌 레이어 ── */
   const g = svg.append('g');
   const zoom = d3.zoom().scaleExtent([0.08, 12]).on('zoom', e => g.attr('transform', e.transform));
   svg.call(zoom);
@@ -1411,53 +1425,58 @@ function drawGraph(svgEl, nodes, links) {
   const lc = {};
   nodes.forEach(n => { lc[n.id] = 0; });
   links.forEach(l => {
-    const s = typeof l.source==='object' ? l.source.id : l.source;
-    const t = typeof l.target==='object' ? l.target.id : l.target;
-    if (lc[s]!=null) lc[s]++;
-    if (lc[t]!=null) lc[t]++;
+    const s = typeof l.source === 'object' ? l.source.id : l.source;
+    const t = typeof l.target === 'object' ? l.target.id : l.target;
+    if (lc[s] != null) lc[s]++;
+    if (lc[t] != null) lc[t]++;
   });
   const nodeR = d => d.isTag
-    ? Math.max(4, Math.min(4 + (lc[d.id]||0) * 1.8, 13))   // 태그: 4~13
-    : Math.max(5, Math.min(5 + (lc[d.id]||0) * 1.5, 22));  // 파일: 5~22
+    ? Math.max(4, Math.min(4 + (lc[d.id]||0) * 1.6, 12))
+    : Math.max(5, Math.min(5 + (lc[d.id]||0) * 1.4, 20));
 
-  /* ── ▶ Force Simulation - 활발하게 ──
-     alphaMin 낮춤 → 거의 멈추지 않음
-     alphaDecay 낮춤 → 오래 움직임
-     velocityDecay 낮춤 → 관성 유지
+  /* ── Force Simulation ──
+     핵심: forceX/forceY에 폴더별 중심점을 강하게 적용 → 같은 폴더끼리 뭉침
+     태그 노드는 중심부에 배치 (forceCenter 영향만 받음)
   ── */
   const sim = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id(d => d.id)
-      .distance(l => l.type === 'tag' ? 55 : 90)
-      .strength(l => l.type === 'tag' ? 0.65 : 0.25))
+      .distance(l => l.type === 'tag' ? 50 : 60)
+      .strength(l => l.type === 'tag' ? 0.4 : 0.6))
     .force('charge', d3.forceManyBody()
-      .strength(d => d.isTag ? -90 : -200)
-      .distanceMax(500))
-    .force('center', d3.forceCenter(W/2, H/2).strength(0.04))
-    .force('collision', d3.forceCollide(d => nodeR(d) + 12).strength(0.75))
-    .force('x', d3.forceX(W/2).strength(0.012))
-    .force('y', d3.forceY(H/2).strength(0.012))
-    .alphaMin(0.003)      // ← 낮게: 거의 안 멈춤
-    .alphaDecay(0.006)    // ← 낮게: 오래 활성
-    .velocityDecay(0.30); // ← 낮게: 관성 강함
+      .strength(d => d.isTag ? -60 : -120)
+      .distanceMax(350))
+    .force('center', d3.forceCenter(W/2, H/2).strength(0.02))
+    .force('collision', d3.forceCollide(d => nodeR(d) + 10).strength(0.8))
+    /* ── 폴더별 클러스터 인력 ── */
+    .force('cluster-x', d3.forceX(d => {
+      if (d.isTag) return W / 2;  // 태그는 중앙
+      return folderCenters[d.folder]?.x ?? W / 2;
+    }).strength(d => d.isTag ? 0.02 : 0.18))
+    .force('cluster-y', d3.forceY(d => {
+      if (d.isTag) return H / 2;
+      return folderCenters[d.folder]?.y ?? H / 2;
+    }).strength(d => d.isTag ? 0.02 : 0.18))
+    .alphaMin(0.002)
+    .alphaDecay(0.008)
+    .velocityDecay(0.35);
 
-  // 지속 움직임: alpha가 alphaMin 근처에서 계속 흔들리도록 주기적 재활성
-  let _animTimer = null;
-  function keepAlive() {
-    if (graphPaused) return;
-    if (sim.alpha() < 0.015) {
-      sim.alpha(0.06).restart();
-    }
-    _animTimer = setTimeout(keepAlive, 2400);
-  }
-  keepAlive();
+  /* graphSim에 등록해서 토글이 동작하도록 */
   graphSim = sim;
 
-  /* ── 링크: 태그=초록점선 / 폴더=흰반투명 ── */
-  const linkLayer = g.append('g');
-  const linkEl = linkLayer.selectAll('line').data(links).join('line')
-    .attr('stroke',       l => l.type==='tag' ? 'rgba(63,185,80,0.5)' : 'rgba(255,255,255,0.10)')
-    .attr('stroke-width', l => l.type==='tag' ? 1.1 : 0.7)
-    .attr('stroke-dasharray', l => l.type==='tag' ? '4,3' : 'none')
+  /* ── keepAlive: alpha가 낮아지면 주기적으로 재활성 ── */
+  function keepAlive() {
+    if (graphPaused) return;
+    if (sim.alpha() < 0.012) sim.alpha(0.05).restart();
+    window._graphKeepAliveTimer = setTimeout(keepAlive, 2500);
+  }
+  keepAlive();
+
+  /* ── 링크: 태그=초록 점선 / 폴더=흰 실선 ── */
+  const linkEl = g.append('g')
+    .selectAll('line').data(links).join('line')
+    .attr('stroke',       l => l.type === 'tag' ? 'rgba(63,185,80,0.45)' : 'rgba(255,255,255,0.10)')
+    .attr('stroke-width', l => l.type === 'tag' ? 1.0 : 0.7)
+    .attr('stroke-dasharray', l => l.type === 'tag' ? '4,3' : 'none')
     .attr('stroke-linecap', 'round');
 
   /* ── 노드 그룹 ── */
@@ -1466,168 +1485,153 @@ function drawGraph(svgEl, nodes, links) {
     .style('cursor', d => d.isTag ? 'default' : 'pointer')
     .call(d3.drag()
       .on('start', (e, d) => {
-        if (!e.active) sim.alphaTarget(0.25).restart();
+        if (!e.active) sim.alphaTarget(0.2).restart();
         d.fx = d.x; d.fy = d.y;
       })
-      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end',  (e, d) => {
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => {
         if (!e.active) sim.alphaTarget(0);
-        // 드래그 끝나도 fx/fy 해제 → 계속 움직임
-        d.fx = null; d.fy = null;
+        d.fx = null; d.fy = null; // 드래그 후 자유 움직임 유지
       }));
 
-  /* ── 후광 링 ── */
-  nodeEl.append('circle').attr('class','halo')
+  /* 후광 링 */
+  nodeEl.append('circle').attr('class', 'halo')
     .attr('r', d => nodeR(d) + (d.isTag ? 7 : 5))
     .attr('fill', 'none')
     .attr('stroke', d => nodeColor(d))
     .attr('stroke-width', d => d.isTag ? 1.5 : 1)
-    .attr('stroke-opacity', d => d.isTag ? 0.45 : 0.20);
+    .attr('stroke-opacity', d => d.isTag ? 0.4 : 0.18);
 
-  /* ── 메인 원 ── */
-  nodeEl.append('circle').attr('class','body')
+  /* 메인 원 */
+  nodeEl.append('circle').attr('class', 'body')
     .attr('r', d => nodeR(d))
     .attr('fill', d => nodeColor(d))
-    .attr('fill-opacity', d => d.isTag ? 0.92 : 0.85)
+    .attr('fill-opacity', d => d.isTag ? 0.9 : 0.85)
     .attr('filter', d => `url(#${d.isTag ? 'gt' : 'gf'})`);
 
-  /* ── 태그 노드: 마름모 오버레이 ── */
+  /* 태그 노드: 마름모 오버레이 */
   nodeEl.filter(d => d.isTag).append('polygon')
-    .attr('points', d => { const r = nodeR(d)*0.52; return `0,${-r} ${r},0 0,${r} ${-r},0`; })
-    .attr('fill', TAG_STROKE).attr('fill-opacity', 0.55).attr('pointer-events','none');
+    .attr('points', d => { const r = nodeR(d) * 0.52; return `0,${-r} ${r},0 0,${r} ${-r},0`; })
+    .attr('fill', TAG_STROKE).attr('fill-opacity', 0.55)
+    .attr('pointer-events', 'none');
 
-  /* ── 라벨: 오른쪽 배치 ── */
-  nodeEl.append('text').attr('class','nlbl')
+  /* 라벨: 노드 오른쪽 */
+  nodeEl.append('text').attr('class', 'nlbl')
     .attr('x', d => nodeR(d) + 5)
     .attr('dy', '0.35em')
     .attr('font-size', d => d.isTag ? '9.5px' : '10.5px')
     .attr('font-weight', d => d.isTag ? '500' : '400')
     .attr('fill', d => d.isTag ? 'rgba(86,211,100,0.88)' : 'rgba(195,210,235,0.82)')
-    .attr('pointer-events','none')
-    .text(d => { const mx = d.isTag ? 16 : 19; return d.name.length>mx ? d.name.slice(0,mx)+'…' : d.name; });
+    .attr('pointer-events', 'none')
+    .text(d => { const mx = d.isTag ? 16 : 18; return d.name.length > mx ? d.name.slice(0, mx) + '…' : d.name; });
 
-  /* ── 파일 노드: 태그 뱃지 (이름 아래) ── */
+  /* 파일 노드: 태그 뱃지 (이름 아래) */
   nodeEl.filter(d => !d.isTag && d.tags && d.tags.length > 0)
-    .append('text').attr('class','tbadge')
+    .append('text').attr('class', 'tbadge')
     .attr('dy', d => nodeR(d) + 13)
-    .attr('text-anchor','middle')
-    .attr('font-size','8px')
-    .attr('fill','rgba(63,185,80,0.60)')
-    .attr('pointer-events','none')
-    .text(d => d.tags.slice(0,3).map(t=>'#'+t).join(' '));
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '8px')
+    .attr('fill', 'rgba(63,185,80,0.58)')
+    .attr('pointer-events', 'none')
+    .text(d => d.tags.slice(0, 3).map(t => '#' + t).join(' '));
 
   /* ── 인포 패널 (클릭 시) ── */
   let infoPanelEl = null;
   function showInfoPanel(d) {
     if (infoPanelEl) { infoPanelEl.remove(); infoPanelEl = null; }
     const panel = document.createElement('div');
-    panel.style.cssText = [
-      'position:absolute','bottom:52px','right:14px',
-      'background:rgba(10,13,20,0.96)',
-      'border-radius:11px','padding:15px 17px',
-      'min-width:210px','max-width:280px','z-index:50','color:white',
-      'font-size:12px','box-shadow:0 6px 28px rgba(0,0,0,0.55)',
-      'animation:fadeIn .18s ease'
-    ].join(';');
+    panel.style.cssText = 'position:absolute;bottom:52px;right:14px;background:rgba(10,13,20,0.96);' +
+      'border-radius:11px;padding:15px 17px;min-width:210px;max-width:275px;z-index:50;color:white;' +
+      'font-size:12px;box-shadow:0 6px 28px rgba(0,0,0,0.6);animation:fadeUp .18s ease;';
 
     if (d.isTag) {
-      // 태그: 연결 파일 목록
       const conFiles = [];
       links.forEach(l => {
         const sid = l.source.id||l.source, tid = l.target.id||l.target;
-        const oid = sid===d.id ? tid : (tid===d.id ? sid : null);
-        if (oid) { const n = nodes.find(x=>x.id===oid&&!x.isTag); if(n) conFiles.push(n); }
+        const oid = sid === d.id ? tid : (tid === d.id ? sid : null);
+        if (oid) { const n = nodes.find(x => x.id === oid && !x.isTag); if (n) conFiles.push(n); }
       });
       panel.style.borderTop = '2px solid rgba(63,185,80,0.5)';
       panel.innerHTML = `
         <div style="color:#56d364;font-weight:700;font-size:13px;margin-bottom:8px">${d.name}</div>
         <div style="color:#8b949e;font-size:11px;margin-bottom:10px">연결된 노트 ${conFiles.length}개</div>
-        <div style="display:flex;flex-direction:column;gap:4px;max-height:170px;overflow-y:auto;scrollbar-width:thin">
-          ${conFiles.map(f=>`
-            <div onclick="loadObsidianFileByPath('${f.path}','${f.name}','${f.folder}')"
-              style="padding:5px 9px;background:rgba(255,255,255,0.05);border-radius:5px;
-                     cursor:pointer;color:#cdd8e5;font-size:12px;transition:background .12s"
-              onmouseover="this.style.background='rgba(63,185,80,0.18)'"
-              onmouseout="this.style.background='rgba(255,255,255,0.05)'">
-              📄 ${f.name}
-            </div>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto">
+          ${conFiles.map(f => `<div onclick="loadObsidianFileByPath('${f.path}','${f.name}','${f.folder}')"
+            style="padding:5px 9px;background:rgba(255,255,255,0.05);border-radius:5px;cursor:pointer;color:#cdd8e5"
+            onmouseover="this.style.background='rgba(63,185,80,0.15)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.05)'">📄 ${f.name}</div>`).join('')}
         </div>
-        <button onclick="this.closest('[style]').remove()"
-          style="position:absolute;top:9px;right:11px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:15px">✕</button>`;
+        <button onclick="this.parentElement.remove()" style="position:absolute;top:9px;right:11px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:15px">✕</button>`;
     } else {
-      // 파일: 이름, 폴더, 태그 뱃지, 열기 버튼
-      panel.style.borderTop = `2px solid ${folderColor(d.folder)}88`;
+      const fc = folderColor(d.folder);
+      panel.style.borderTop = `2px solid ${fc}99`;
       const tagHtml = d.tags && d.tags.length
-        ? d.tags.map(t=>`<span style="display:inline-block;padding:2px 8px;margin:2px 2px 2px 0;
-            background:rgba(63,185,80,0.14);border:1px solid rgba(63,185,80,0.38);
+        ? d.tags.map(t => `<span style="display:inline-block;padding:2px 8px;margin:2px 2px 2px 0;
+            background:rgba(63,185,80,0.13);border:1px solid rgba(63,185,80,0.35);
             border-radius:10px;color:#56d364;font-size:10px">#${t}</span>`).join('')
         : '<span style="color:#555;font-size:11px">태그 없음</span>';
       panel.innerHTML = `
-        <div style="color:${folderColor(d.folder)};font-weight:700;font-size:13px;margin-bottom:5px">📄 ${d.name}</div>
+        <div style="color:${fc};font-weight:700;font-size:13px;margin-bottom:5px">📄 ${d.name}</div>
         <div style="color:#6b7280;font-size:11px;margin-bottom:10px">📁 ${d.folder}</div>
         <div style="margin-bottom:12px;line-height:1.8">${tagHtml}</div>
         <button onclick="loadObsidianFileByPath('${d.path}','${d.name}','${d.folder}')"
-          style="width:100%;padding:7px;background:#1f6feb;border:none;border-radius:6px;
-                 color:white;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s"
-          onmouseover="this.style.background='#388bfd'" onmouseout="this.style.background='#1f6feb'">
-          열기 →
-        </button>
-        <button onclick="this.closest('[style]').remove()"
-          style="position:absolute;top:9px;right:11px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:15px">✕</button>`;
+          style="width:100%;padding:7px;background:#1f6feb;border:none;border-radius:6px;color:white;cursor:pointer;font-size:12px;font-weight:600"
+          onmouseover="this.style.background='#388bfd'" onmouseout="this.style.background='#1f6feb'">열기 →</button>
+        <button onclick="this.parentElement.remove()" style="position:absolute;top:9px;right:11px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:15px">✕</button>`;
     }
     wrap.appendChild(panel);
     infoPanelEl = panel;
   }
 
-  /* ── 마우스 이벤트 ── */
+  /* ── 연결 세트 헬퍼 ── */
+  function connectedSet(d) {
+    const s = new Set([d.id]);
+    links.forEach(l => {
+      const sid = l.source.id||l.source, tid = l.target.id||l.target;
+      if (sid === d.id) s.add(tid);
+      if (tid === d.id) s.add(sid);
+    });
+    return s;
+  }
+
+  /* ── 이벤트 ── */
   nodeEl
     .on('mouseover', (e, d) => {
       tooltip.style.display = 'block';
-      if (d.isTag) {
-        tooltip.textContent = d.name + '  (' + (lc[d.id]||0) + '개 노트)';
-      } else {
-        tooltip.textContent = d.name + (d.tags?.length ? '  '+d.tags.map(t=>'#'+t).join(' ') : '');
-      }
-      // 연결 세트
-      const conn = new Set([d.id]);
-      links.forEach(l => {
-        const s=l.source.id||l.source, t=l.target.id||l.target;
-        if (s===d.id) conn.add(t);
-        if (t===d.id) conn.add(s);
-      });
-      // 링크 강조
+      tooltip.textContent = d.isTag
+        ? `${d.name}  (${lc[d.id]||0}개 노트)`
+        : d.name + (d.tags?.length ? '  ' + d.tags.map(t => '#' + t).join(' ') : '');
+
+      const conn = connectedSet(d);
       linkEl
         .attr('stroke', l => {
-          const hit = l.source.id===d.id || l.target.id===d.id;
-          return hit ? (l.type==='tag' ? 'rgba(86,211,100,0.95)' : 'rgba(255,255,255,0.7)') : 'rgba(255,255,255,0.03)';
+          const hit = l.source.id === d.id || l.target.id === d.id;
+          return hit ? (l.type === 'tag' ? 'rgba(86,211,100,0.95)' : 'rgba(255,255,255,0.75)') : 'rgba(255,255,255,0.03)';
         })
-        .attr('stroke-width', l => (l.source.id===d.id||l.target.id===d.id) ? 2.0 : 0.5)
-        .attr('stroke-dasharray', l => {
-          if (l.source.id===d.id||l.target.id===d.id) return l.type==='tag'?'5,3':'none';
-          return l.type==='tag'?'4,3':'none';
-        });
-      // 노드 dimming
-      nodeEl.selectAll('circle.body').attr('fill-opacity', n2 => conn.has(n2.id) ? (n2.isTag?0.95:0.88) : 0.07);
-      nodeEl.selectAll('circle.halo').attr('stroke-opacity', n2 => conn.has(n2.id) ? (n2.isTag?0.55:0.28) : 0.02);
+        .attr('stroke-width', l => (l.source.id === d.id || l.target.id === d.id) ? 1.8 : 0.5);
+
+      nodeEl.selectAll('circle.body')
+        .attr('fill-opacity', n2 => conn.has(n2.id) ? (n2.isTag ? 0.95 : 0.88) : 0.07);
+      nodeEl.selectAll('circle.halo')
+        .attr('stroke-opacity', n2 => conn.has(n2.id) ? (n2.isTag ? 0.55 : 0.28) : 0.02);
       nodeEl.selectAll('text').attr('opacity', n2 => conn.has(n2.id) ? 1 : 0.05);
-      // 자신 확대 + 흔들기
+
       d3.select(e.currentTarget).select('circle.body')
-        .transition().duration(150).attr('r', nodeR(d)*1.3).attr('fill-opacity', 1);
+        .transition().duration(120).attr('r', nodeR(d) * 1.28).attr('fill-opacity', 1);
       d3.select(e.currentTarget).select('circle.halo')
-        .transition().duration(150).attr('r', nodeR(d)+10).attr('stroke-opacity', 0.85);
+        .transition().duration(120).attr('r', nodeR(d) + 11).attr('stroke-opacity', 0.85);
     })
     .on('mousemove', e => {
-      tooltip.style.left = (e.clientX+15)+'px';
-      tooltip.style.top  = (e.clientY-32)+'px';
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top  = (e.clientY - 30) + 'px';
     })
     .on('mouseout', (e, d) => {
       tooltip.style.display = 'none';
       linkEl
-        .attr('stroke',       l => l.type==='tag' ? 'rgba(63,185,80,0.5)' : 'rgba(255,255,255,0.10)')
-        .attr('stroke-width', l => l.type==='tag' ? 1.1 : 0.7)
-        .attr('stroke-dasharray', l => l.type==='tag' ? '4,3' : 'none');
-      nodeEl.selectAll('circle.body').attr('fill-opacity', n2 => n2.isTag?0.92:0.85).attr('r', n2=>nodeR(n2));
-      nodeEl.selectAll('circle.halo').attr('stroke-opacity', n2 => n2.isTag?0.45:0.20).attr('r', n2=>nodeR(n2)+(n2.isTag?7:5));
+        .attr('stroke',       l => l.type === 'tag' ? 'rgba(63,185,80,0.45)' : 'rgba(255,255,255,0.10)')
+        .attr('stroke-width', l => l.type === 'tag' ? 1.0 : 0.7);
+      nodeEl.selectAll('circle.body').attr('fill-opacity', n2 => n2.isTag ? 0.9 : 0.85).attr('r', n2 => nodeR(n2));
+      nodeEl.selectAll('circle.halo').attr('stroke-opacity', n2 => n2.isTag ? 0.4 : 0.18).attr('r', n2 => nodeR(n2) + (n2.isTag ? 7 : 5));
       nodeEl.selectAll('text').attr('opacity', 1);
     })
     .on('click', (e, d) => { e.stopPropagation(); showInfoPanel(d); });
@@ -1640,15 +1644,14 @@ function drawGraph(svgEl, nodes, links) {
     nodeEl.attr('transform', d => `translate(${d.x||0},${d.y||0})`);
   });
 
-  /* ── 배경 클릭: 패널 닫기 + 하이라이트 해제 ── */
+  /* ── 배경 클릭 ── */
   svg.on('click', () => {
     if (infoPanelEl) { infoPanelEl.remove(); infoPanelEl = null; }
     linkEl
-      .attr('stroke',       l => l.type==='tag' ? 'rgba(63,185,80,0.5)' : 'rgba(255,255,255,0.10)')
-      .attr('stroke-width', l => l.type==='tag' ? 1.1 : 0.7)
-      .attr('stroke-dasharray', l => l.type==='tag' ? '4,3' : 'none');
-    nodeEl.selectAll('circle.body').attr('fill-opacity', n2=>n2.isTag?0.92:0.85).attr('r', n2=>nodeR(n2));
-    nodeEl.selectAll('circle.halo').attr('stroke-opacity', n2=>n2.isTag?0.45:0.20).attr('r', n2=>nodeR(n2)+(n2.isTag?7:5));
+      .attr('stroke',       l => l.type === 'tag' ? 'rgba(63,185,80,0.45)' : 'rgba(255,255,255,0.10)')
+      .attr('stroke-width', l => l.type === 'tag' ? 1.0 : 0.7);
+    nodeEl.selectAll('circle.body').attr('fill-opacity', n2 => n2.isTag ? 0.9 : 0.85).attr('r', n2 => nodeR(n2));
+    nodeEl.selectAll('circle.halo').attr('stroke-opacity', n2 => n2.isTag ? 0.4 : 0.18).attr('r', n2 => nodeR(n2) + (n2.isTag ? 7 : 5));
     nodeEl.selectAll('text').attr('opacity', 1);
   });
 }
@@ -2175,22 +2178,31 @@ function showToast(msg, isError=false) {
   setTimeout(() => el.remove(), 3000);
 }
 
+/* ── 토글: 움직임 켜기/끄기 ── */
 function toggleSimulation() {
   const btn = document.getElementById('pause-btn');
   if (!graphSim) return;
   graphPaused = !graphPaused;
   if (graphPaused) {
     graphSim.stop();
+    if (window._graphKeepAliveTimer) { clearTimeout(window._graphKeepAliveTimer); window._graphKeepAliveTimer = null; }
     if (btn) { btn.textContent = '▶ 재생'; btn.classList.add('paused'); }
   } else {
     graphSim.alpha(0.15).restart();
     if (btn) { btn.textContent = '⏸ 멈춤'; btn.classList.remove('paused'); }
+    // keepAlive 재시작
+    function keepAlive() {
+      if (graphPaused) return;
+      if (graphSim.alpha() < 0.012) graphSim.alpha(0.05).restart();
+      window._graphKeepAliveTimer = setTimeout(keepAlive, 2500);
+    }
+    keepAlive();
   }
 }
 
-function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().duration(280).call(graphZoom.scaleBy, 1.4); }
-function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().duration(280).call(graphZoom.scaleBy, 0.7); }
-function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().duration(450).call(graphZoom.transform, d3.zoomIdentity); }
+function zoomIn()    { if (graphZoom && graphSvg) graphSvg.transition().duration(280).call(graphZoom.scaleBy, 1.4); }
+function zoomOut()   { if (graphZoom && graphSvg) graphSvg.transition().duration(280).call(graphZoom.scaleBy, 0.7); }
+function resetZoom() { if (graphZoom && graphSvg) graphSvg.transition().duration(450).call(graphZoom.transform, d3.zoomIdentity); }
 
 </script>
 </body>
