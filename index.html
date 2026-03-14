@@ -404,7 +404,7 @@ document.addEventListener('click', function(e) {
 
 // navbar hover 시 화면 유지 (아무 동작 없음)
 
-function showDashboard() {
+function showDashboard(bustCache=false) {
   contentEl.className = 'content markdown-body';
   contentEl.innerHTML = `
   <div id="dashboard">
@@ -419,7 +419,7 @@ function showDashboard() {
       </div>
     </div>
   </div>`;
-  initObsidianGraph();
+  initObsidianGraph(bustCache);
 }
 
 /* ── 메뉴 생성 ── */
@@ -1866,12 +1866,13 @@ async function showDeleteDialog() {
       overlay.remove();
       showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
 
-      // 상태 초기화 후 대시보드로 이동
+      // 상태 초기화 후 대시보드로 이동 (캐시 버스팅으로 즉시 반영)
       _currentFilePath   = null;
       _currentFileSha    = null;
       _currentRawContent = '';
-      showDashboard();
-      refreshObsidian();
+      const obsDD2 = document.getElementById('dd-2');
+      if (obsDD2) obsDD2.innerHTML = '';
+      showDashboard(true);
     } catch(e) {
       showToast('❌ ' + e.message, true);
       delBtn.disabled = false;
@@ -1964,17 +1965,33 @@ async function showSaveDialog(name, folder) {
     if (!raw) { newFolderInput.focus(); return; }
     // 이미 존재하면 그냥 선택
     const existing = [...folSelect.options].find(o => o.value === raw);
-    if (existing) { folSelect.value = raw; newFolderInput.value = ''; return; }
-    // 새 옵션 추가 & 선택
+    if (existing) {
+      // 기존 선택 해제
+      [...folSelect.options].forEach(o => o.selected = false);
+      existing.selected = true;
+      newFolderInput.value = '';
+      folSelect.style.borderColor = '#22c55e';
+      setTimeout(() => { folSelect.style.borderColor = '#e2e8f0'; }, 1200);
+      return;
+    }
+    // 새 옵션 추가
     const opt = document.createElement('option');
-    opt.value = raw; opt.textContent = '📁 ' + raw; opt.selected = true;
+    opt.value = raw;
+    opt.textContent = '📁 ' + raw + '  ✨ 새 폴더';
     folSelect.appendChild(opt);
-    folSelect.value = raw;
+    // setTimeout으로 DOM 반영 후 선택 (타이밍 버그 방지)
+    setTimeout(() => {
+      [...folSelect.options].forEach(o => o.selected = false);
+      opt.selected = true;
+      folSelect.value = raw;
+      folSelect.style.borderColor = '#22c55e';
+      setTimeout(() => { folSelect.style.borderColor = '#e2e8f0'; }, 1200);
+    }, 0);
     newFolderInput.value = '';
-    // 시각적 피드백
-    addFolderBtn.textContent = '✓';
+    // 버튼 피드백
+    addFolderBtn.textContent = '✓ 추가됨';
     addFolderBtn.style.background = '#22c55e';
-    setTimeout(() => { addFolderBtn.textContent = '+ 추가'; addFolderBtn.style.background = '#3b82f6'; }, 900);
+    setTimeout(() => { addFolderBtn.textContent = '+ 추가'; addFolderBtn.style.background = '#3b82f6'; }, 1000);
   };
 
   // Enter 키로도 추가
@@ -2010,7 +2027,8 @@ async function showSaveDialog(name, folder) {
   confirmBtn.textContent = '저장';
   confirmBtn.style.cssText = 'padding:10px 20px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer;font-size:14px;font-weight:600;';
   confirmBtn.onclick = async () => {
-    const selFolder = folSelect.value;
+    // folSelect.value가 빈 경우 대비: selectedOptions로 직접 읽기
+    const selFolder = folSelect.selectedOptions[0]?.value || folSelect.value || '루트';
     const filename  = fileInput.value.trim();
     if (!filename) { alert('파일명을 입력해주세요.'); return; }
 
