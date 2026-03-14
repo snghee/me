@@ -339,9 +339,11 @@ const GITHUB_BRANCH = 'main';
 const GITHUB_API    = 'https://api.github.com';
 
 // GitHub API 헬퍼
-async function ghGetTree() {
+async function ghGetTree(bustCache = false) {
+  const qs = bustCache ? `&t=${Date.now()}` : '';
   const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`
+    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1${qs}`,
+    bustCache ? { cache: 'no-store' } : {}
   );
   if (!r.ok) throw new Error('GitHub 트리 로드 실패');
   const data = await r.json();
@@ -919,6 +921,7 @@ function renderNewDoc() {
       }
       showToast(`✅ "${filePath}" 저장 완료!`);
       if (btn) { btn.disabled=false; btn.innerHTML='저장'; }
+      refreshObsidian();
     } catch(e) {
       showToast('❌ ' + e.message, true);
       if (btn) { btn.disabled=false; btn.innerHTML='저장'; }
@@ -1085,6 +1088,7 @@ async function _saveNewDoc_unused() {
     _currentRawContent = body;
     _editorMode = 'preview';
     renderEditor(_currentFileName, _currentFileFolder);
+    refreshObsidian();
   } else {
     const err = await r.json();
     showToast('❌ ' + (err.message || '저장 실패'), true);
@@ -1286,7 +1290,7 @@ document.getElementById('navbar').addEventListener('mouseleave', hideGraph);
 /* ── 옵시디안 그래프 ── */
 let graphZoom = null, graphSvg = null;
 
-async function initObsidianGraph() {
+async function initObsidianGraph(bustCache = false) {
   const wrap = document.getElementById('graph-wrap');
   const svg  = document.getElementById('obs-graph');
   if (!svg || !wrap) return;
@@ -1296,7 +1300,7 @@ async function initObsidianGraph() {
 
   try {
     // GitHub 트리에서 노드 생성
-    const tree = await ghGetTree();
+    const tree = await ghGetTree(bustCache);
     // 파일 목록 + frontmatter tags 추출 (병렬 로드, 최대 20개)
     const rawNodes = tree
       .filter(f => !f.path.startsWith('.'))
@@ -1862,15 +1866,12 @@ async function showDeleteDialog() {
       overlay.remove();
       showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
 
-      // 옵시디안 드롭다운 캐시 초기화
-      const obsDD = document.getElementById('dd-2');
-      if (obsDD) obsDD.innerHTML = '';
-
-      // 현재 파일 상태 초기화 후 대시보드로 이동
+      // 상태 초기화 후 대시보드로 이동
       _currentFilePath   = null;
       _currentFileSha    = null;
       _currentRawContent = '';
       showDashboard();
+      refreshObsidian();
     } catch(e) {
       showToast('❌ ' + e.message, true);
       delBtn.disabled = false;
@@ -2055,6 +2056,7 @@ async function showSaveDialog(name, folder) {
       if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
       showToast('✅ 저장 완료!');
       renderEditor(_currentFileName, _currentFileFolder);
+      refreshObsidian();
     } catch(e) {
       showToast('❌ ' + e.message, true);
       if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
@@ -2071,6 +2073,17 @@ async function showSaveDialog(name, folder) {
   fileInput.select();
 }
 
+
+/* ── 저장/삭제 후 옵시디안 드롭다운 + 그래프 즉시 갱신 ── */
+async function refreshObsidian() {
+  // 드롭다운 초기화 (다음 열 때 재로드되도록)
+  const obsDD = document.getElementById('dd-2');
+  if (obsDD) obsDD.innerHTML = '';
+  // 그래프가 보이고 있으면 즉시 재초기화 (캐시 버스팅)
+  if (document.getElementById('obs-graph')) {
+    await initObsidianGraph(true);
+  }
+}
 
 function showToast(msg, isError=false) {
   const el = document.createElement('div');
