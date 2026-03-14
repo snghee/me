@@ -1931,15 +1931,57 @@ async function showSaveDialog(name, folder) {
   box.appendChild(folLabel);
 
   const folSelect = document.createElement('select');
-  folSelect.style.cssText = 'width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:15px;margin-bottom:16px;outline:none;box-sizing:border-box;';
+  folSelect.style.cssText = 'width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:15px;outline:none;box-sizing:border-box;';
   folders.forEach(f => {
     const opt = document.createElement('option');
     opt.value = f;
-    opt.textContent = f;
+    opt.textContent = f === '루트' ? '📂 루트 (최상위)' : '📁 ' + f;
     if (f === folder || (f === '루트' && !folder)) opt.selected = true;
     folSelect.appendChild(opt);
   });
   box.appendChild(folSelect);
+
+  /* ── 새 폴더 추가 행 ── */
+  const newFolderRow = document.createElement('div');
+  newFolderRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;margin-bottom:16px;';
+
+  const newFolderInput = document.createElement('input');
+  newFolderInput.type = 'text';
+  newFolderInput.placeholder = '새 폴더명 입력…';
+  newFolderInput.style.cssText = 'flex:1;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;color:#1e293b;';
+  newFolderInput.addEventListener('focus',  () => { newFolderInput.style.borderColor='#3b82f6'; });
+  newFolderInput.addEventListener('blur',   () => { newFolderInput.style.borderColor='#e2e8f0'; });
+
+  const addFolderBtn = document.createElement('button');
+  addFolderBtn.textContent = '+ 추가';
+  addFolderBtn.style.cssText = 'padding:8px 14px;border:none;border-radius:8px;background:#3b82f6;color:white;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:background .15s;';
+  addFolderBtn.onmouseover = () => { addFolderBtn.style.background='#2563eb'; };
+  addFolderBtn.onmouseout  = () => { addFolderBtn.style.background='#3b82f6'; };
+
+  addFolderBtn.onclick = () => {
+    const raw = newFolderInput.value.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+    if (!raw) { newFolderInput.focus(); return; }
+    // 이미 존재하면 그냥 선택
+    const existing = [...folSelect.options].find(o => o.value === raw);
+    if (existing) { folSelect.value = raw; newFolderInput.value = ''; return; }
+    // 새 옵션 추가 & 선택
+    const opt = document.createElement('option');
+    opt.value = raw; opt.textContent = '📁 ' + raw; opt.selected = true;
+    folSelect.appendChild(opt);
+    folSelect.value = raw;
+    newFolderInput.value = '';
+    // 시각적 피드백
+    addFolderBtn.textContent = '✓';
+    addFolderBtn.style.background = '#22c55e';
+    setTimeout(() => { addFolderBtn.textContent = '+ 추가'; addFolderBtn.style.background = '#3b82f6'; }, 900);
+  };
+
+  // Enter 키로도 추가
+  newFolderInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addFolderBtn.click(); } });
+
+  newFolderRow.appendChild(newFolderInput);
+  newFolderRow.appendChild(addFolderBtn);
+  box.appendChild(newFolderRow);
 
   // 파일명
   const fileLabel = document.createElement('div');
