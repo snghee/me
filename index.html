@@ -317,9 +317,42 @@ function loadGapi() {
     if (window.gapi) { res(); return; }
     const s = document.createElement('script');
     s.src = 'https://apis.google.com/js/api.js';
-    s.onload = res;
-    s.onerror = res; // 실패해도 계속 진행
+    s.onload = res; s.onerror = res;
     document.head.appendChild(s);
+  });
+}
+
+/* Google Identity Services (GIS) 로드 */
+function loadGIS() {
+  return new Promise((res) => {
+    if (window.google?.accounts?.oauth2) { res(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = res; s.onerror = res;
+    document.head.appendChild(s);
+  });
+}
+
+/* Drive access_token 확보 (GIS tokenClient 방식) */
+let _driveToken = null;
+let _driveTokenExp = 0;
+function getDriveToken() {
+  return new Promise(async (res, rej) => {
+    // 유효한 토큰이 있으면 재사용
+    if (_driveToken && Date.now() < _driveTokenExp) { res(_driveToken); return; }
+    await loadGIS();
+    if (!window.google?.accounts?.oauth2) { rej(new Error('Google GIS 로드 실패')); return; }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive',
+      callback: (resp) => {
+        if (resp.error) { rej(new Error('Google 인증 실패: ' + resp.error)); return; }
+        _driveToken    = resp.access_token;
+        _driveTokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+        res(_driveToken);
+      },
+    });
+    client.requestAccessToken({ prompt: _driveToken ? '' : 'consent' });
   });
 }
 </script>
@@ -1857,14 +1890,9 @@ async function showDeleteDialog() {
     /* access_token 확보 */
     let accessToken = null;
     try {
-      await initGapi();
-      accessToken = gapi.auth.getToken()?.access_token;
-    } catch(e) {}
-    if (!accessToken) {
-      treeWrap.innerHTML = `<div style="color:#dc2626;padding:16px;font-size:13px;">
-        ❌ 구글 인증이 필요합니다.<br>
-        <span style="color:#64748b;font-size:12px;">먼저 구글드라이브 메뉴에서 파일을 한 번 열어주세요.</span>
-      </div>`;
+      accessToken = await getDriveToken();
+    } catch(e) {
+      treeWrap.innerHTML = `<div style="color:#dc2626;padding:16px;font-size:13px;">❌ Google 인증 실패: ${e.message}</div>`;
       return;
     }
 
@@ -2013,9 +2041,7 @@ async function showDeleteDialog() {
 
       } else {
         // 구글드라이브 삭제 (휴지통으로 이동)
-        await initGapi();
-        const accessToken = gapi.auth.getToken()?.access_token;
-        if (!accessToken) throw new Error('구글 인증이 필요합니다. 드라이브 메뉴에서 먼저 파일을 열어주세요.');
+        const accessToken = await getDriveToken();
         const r = await fetch(
           `https://www.googleapis.com/drive/v3/files/${selectedFile.id}`,
           { method:'DELETE', headers:{'Authorization':`Bearer ${accessToken}`} }
