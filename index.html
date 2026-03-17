@@ -1402,13 +1402,15 @@ function drawGraph(svgEl, nodes, links) {
   /* ── 초기화 ── */
   if (window._globeRAF) { cancelAnimationFrame(window._globeRAF); window._globeRAF = null; }
   if (window._kaTimer)  { clearTimeout(window._kaTimer); window._kaTimer = null; }
-  graphPaused = false;
+  graphPaused = false; graphSim = null;
   const pauseBtn = document.getElementById('pause-btn');
   if (pauseBtn) { pauseBtn.textContent = '⏸ 멈춤'; pauseBtn.classList.remove('paused'); }
 
   const wrap = svgEl.parentElement;
   const W = wrap.offsetWidth  || window.innerWidth  || 900;
   const H = wrap.offsetHeight || window.innerHeight || 600;
+  const CX = W/2, CY = H/2;
+  const R  = Math.min(W, H) * 0.38;
   const tooltip = document.getElementById('graph-tooltip');
 
   /* ── 색상 ── */
@@ -1421,23 +1423,86 @@ function drawGraph(svgEl, nodes, links) {
   /* ── SVG ── */
   const svg = d3.select(svgEl).attr('width',W).attr('height',H);
   svg.selectAll('*').remove();
+  const defs = svg.append('defs');
 
   /* 배경 */
-  const defs = svg.append('defs');
-  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#07111f');
+  const bgGr = defs.append('radialGradient').attr('id','gb-bg').attr('cx','42%').attr('cy','38%');
+  bgGr.append('stop').attr('offset','0%').attr('stop-color','#090f22');
+  bgGr.append('stop').attr('offset','100%').attr('stop-color','#020408');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#gb-bg)');
 
-  /* 폴더별 영역 배경 원 (반투명) */
-  const areaG = svg.append('g');
+  /* 별 */
+  for (let i=0; i<250; i++) {
+    const sx = (Math.sin(i*127.1)*0.5+0.5)*W;
+    const sy = (Math.sin(i*311.7)*0.5+0.5)*H;
+    const sr = (Math.sin(i*57.3)*0.5+0.5)*1.3+0.15;
+    svg.append('circle').attr('cx',sx).attr('cy',sy).attr('r',sr)
+      .attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.55+0.07);
+  }
+
+  /* 지구 그라디언트 */
+  const globeGr = defs.append('radialGradient').attr('id','gb-globe').attr('cx','35%').attr('cy','32%');
+  globeGr.append('stop').attr('offset','0%').attr('stop-color','#12305a');
+  globeGr.append('stop').attr('offset','60%').attr('stop-color','#0a1e3d');
+  globeGr.append('stop').attr('offset','100%').attr('stop-color','#04101f');
+
+  /* 지구 하이라이트 */
+  const hlGr = defs.append('radialGradient').attr('id','gb-hl').attr('cx','32%').attr('cy','28%');
+  hlGr.append('stop').attr('offset','0%').attr('stop-color','rgba(150,200,255,0.22)');
+  hlGr.append('stop').attr('offset','100%').attr('stop-color','rgba(0,0,0,0)');
 
   /* 글로우 필터 */
   const mkGlow = (id, blur) => {
-    const f = defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
+    const f = defs.append('filter').attr('id',id)
+      .attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');
     const m = f.append('feMerge');
     m.append('feMergeNode').attr('in','blur');
     m.append('feMergeNode').attr('in','SourceGraphic');
   };
-  mkGlow('nf',2.5); mkGlow('nt',4.5); mkGlow('af',18);
+  mkGlow('nf',2.5); mkGlow('nt',5); mkGlow('halo',12);
+
+  /* 지구 외부 글로우 */
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+22)
+    .attr('fill','none').attr('stroke','rgba(80,140,255,0.06)').attr('stroke-width',28)
+    .attr('filter','url(#halo)');
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+6)
+    .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',7);
+
+  /* 지구 본체 */
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R)
+    .attr('fill','url(#gb-globe)').attr('stroke','rgba(80,150,255,0.3)').attr('stroke-width',1.5);
+
+  /* 하이라이트 */
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R)
+    .attr('fill','url(#gb-hl)').attr('pointer-events','none');
+
+  /* 클립 패스 */
+  defs.append('clipPath').attr('id','globe-clip')
+    .append('circle').attr('cx',CX).attr('cy',CY).attr('r',R-1);
+
+  /* ── 구면 좌표 배정 ── */
+  /* 폴더별로 위도 띠 할당, 각 띠 위에 노드를 경도 방향으로 균등 배치 */
+  const bandStep = Math.PI / (fileFolders.length + 1);
+  const folderBand = {};
+  fileFolders.forEach((fol,i) => { folderBand[fol] = -Math.PI/2 + bandStep*(i+1); });
+
+  const folderCnt = {}, folderIdx = {};
+  nodes.filter(n=>!n.isTag).forEach(n => { folderCnt[n.folder]=(folderCnt[n.folder]||0)+1; });
+  nodes.forEach(n => {
+    if (n.isTag) return;
+    folderIdx[n.folder] = folderIdx[n.folder]||0;
+    const total = folderCnt[n.folder];
+    const idx   = folderIdx[n.folder]++;
+    n._lat = folderBand[n.folder];
+    n._lng = (2*Math.PI*idx)/total - Math.PI + 0.05;
+  });
+  /* 태그: 북극 근처 */
+  const tagNodes = nodes.filter(n=>n.isTag);
+  tagNodes.forEach((n,i) => {
+    n._lat = Math.PI/2 - 0.28;
+    n._lng = (2*Math.PI*i)/Math.max(tagNodes.length,1) - Math.PI;
+  });
 
   /* ── 링크 수 → 반지름 ── */
   const lc = {};
@@ -1448,82 +1513,35 @@ function drawGraph(svgEl, nodes, links) {
     if(lc[s]!=null)lc[s]++; if(lc[t]!=null)lc[t]++;
   });
   const nodeR = d => d.isTag
-    ? Math.max(5, Math.min(5+(lc[d.id]||0)*1.5,14))
-    : Math.max(5, Math.min(5+(lc[d.id]||0)*1.3,18));
+    ? Math.max(4,Math.min(4+(lc[d.id]||0)*1.5,12))
+    : Math.max(4,Math.min(4+(lc[d.id]||0)*1.3,16));
 
-  /* ── 폴더별 클러스터 중심점 (원형 배치) ── */
-  const clusterR = Math.min(W,H) * 0.30;
-  const clusterCenter = {};
-  fileFolders.forEach((fol,i) => {
-    const angle = (2*Math.PI*i)/fileFolders.length - Math.PI/2;
-    clusterCenter[fol] = {
-      x: W/2 + clusterR * Math.cos(angle),
-      y: H/2 + clusterR * Math.sin(angle)
-    };
-  });
+  /* ── 회전 상태 ── */
+  let rotY = 0, rotX = 0.28;
+  let isDragging = false, dragX0 = 0, dragY0 = 0, rotY0 = 0, rotX0 = 0;
 
-  /* ── Force Simulation ── */
-  const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d=>d.id)
-      .distance(l => l.type==='tag' ? 55 : 45)
-      .strength(l => l.type==='tag' ? 0.3 : 0.7))
-    .force('charge', d3.forceManyBody()
-      .strength(d => d.isTag ? -80 : -160)
-      .distanceMax(300))
-    .force('center', d3.forceCenter(W/2, H/2).strength(0.015))
-    .force('collision', d3.forceCollide(d => nodeR(d)+12).strength(0.85))
-    /* 폴더별 클러스터 인력 */
-    .force('cluster-x', d3.forceX(d => {
-      if (d.isTag) return W/2;
-      return clusterCenter[d.folder]?.x ?? W/2;
-    }).strength(d => d.isTag ? 0.03 : 0.22))
-    .force('cluster-y', d3.forceY(d => {
-      if (d.isTag) return H/2;
-      return clusterCenter[d.folder]?.y ?? H/2;
-    }).strength(d => d.isTag ? 0.03 : 0.22))
-    .alphaMin(0.002).alphaDecay(0.008).velocityDecay(0.38);
-
-  graphSim = sim;
-
-  /* keepAlive */
-  function keepAlive() {
-    if (graphPaused) return;
-    if (sim.alpha() < 0.012) sim.alpha(0.05).restart();
-    window._kaTimer = setTimeout(keepAlive, 2500);
+  /* ── 3D → 2D 투영 ── */
+  function project(lat, lng) {
+    const cosLat = Math.cos(lat);
+    const sinLat = Math.sin(lat);
+    const cosLng = Math.cos(lng + rotY);
+    const sinLng = Math.sin(lng + rotY);
+    const cosRX  = Math.cos(rotX), sinRX = Math.sin(rotX);
+    const x3 = cosLat * sinLng;
+    const y3 = sinLat * cosRX - cosLat * cosLng * sinRX;
+    const z3 = sinLat * sinRX + cosLat * cosLng * cosRX;
+    return { x: CX + R*x3, y: CY - R*y3, z: z3 };
   }
-  keepAlive();
 
-  /* ── 줌 레이어 ── */
-  const g = svg.append('g');
-  const zoom = d3.zoom().scaleExtent([0.15,10]).on('zoom', e=>g.attr('transform',e.transform));
-  svg.call(zoom);
-  graphZoom = zoom; graphSvg = svg;
+  /* ── 격자선 레이어 (클립) ── */
+  const gridG = svg.append('g').attr('clip-path','url(#globe-clip)');
 
-  /* ── 폴더 영역 원 ── */
-  const areaCircles = {};
-  fileFolders.forEach(fol => {
-    const c = folderColor(fol);
-    const circle = g.append('circle')
-      .attr('r', 60)
-      .attr('fill', c).attr('fill-opacity', 0.04)
-      .attr('stroke', c).attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.18)
-      .attr('stroke-dasharray','6,4')
-      .attr('filter','url(#af)');
-    areaCircles[fol] = circle;
+  /* ── 링크/노드 레이어 (클립) ── */
+  const contentG = svg.append('g').attr('clip-path','url(#globe-clip)');
+  const linkLayer = contentG.append('g');
+  const nodeLayer = contentG.append('g');
 
-    /* 폴더 레이블 */
-    const label = g.append('text')
-      .attr('text-anchor','middle')
-      .attr('font-size','11px').attr('font-weight','700')
-      .attr('fill', c).attr('fill-opacity',0.55)
-      .attr('pointer-events','none')
-      .text(fol);
-    areaCircles[fol+'_lbl'] = label;
-  });
-
-  /* ── 링크 ── */
-  const linkLayer = g.append('g');
+  /* ── 링크 데이터 ── */
   const nodeById = {};
   nodes.forEach(n=>{nodeById[n.id]=n;});
   const linkData = links.map(l=>({
@@ -1532,93 +1550,157 @@ function drawGraph(svgEl, nodes, links) {
     type: l.type
   })).filter(l=>l.src&&l.tgt);
 
-  const linkEls = linkData.map(l =>
+  const linkEls = linkData.map(l=>
     linkLayer.append('line')
-      .attr('stroke', l.type==='tag'?'rgba(74,222,128,0.4)':'rgba(160,195,255,0.14)')
-      .attr('stroke-width', l.type==='tag'?1.0:0.6)
-      .attr('stroke-dasharray', l.type==='tag'?'4,3':'none')
+      .attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)')
+      .attr('stroke-width',l.type==='tag'?1.2:0.7)
+      .attr('stroke-dasharray',l.type==='tag'?'4,3':'none')
       .attr('stroke-linecap','round')
   );
 
-  /* ── 노드 ── */
-  const nodeLayer = g.append('g');
+  /* ── 노드 DOM ── */
+  const nodeGroups = [];
   nodes.forEach(n => {
-    const ng = nodeLayer.append('g').style('cursor', n.isTag?'default':'pointer')
-      .call(d3.drag()
-        .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
-        .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
-        .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+    const ng = nodeLayer.append('g').style('cursor',n.isTag?'default':'pointer');
 
     ng.append('circle').attr('class','nhalo')
-      .attr('r', nodeR(n)+(n.isTag?7:5)).attr('fill','none')
+      .attr('r',nodeR(n)+(n.isTag?7:5)).attr('fill','none')
       .attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.9)
-      .attr('stroke-opacity',n.isTag?0.45:0.2);
+      .attr('stroke-opacity',n.isTag?0.5:0.22);
     ng.append('circle').attr('class','nbody').datum(n)
       .attr('r',nodeR(n)).attr('fill',nodeColor(n))
       .attr('fill-opacity',n.isTag?0.95:0.88)
       .attr('filter',`url(#${n.isTag?'nt':'nf'})`);
-    if (n.isTag) {
+    if(n.isTag){
       const r2=nodeR(n)*0.5;
       ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`)
         .attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');
     }
     ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em')
       .attr('font-size',n.isTag?'9.5px':'10px')
-      .attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.85)')
+      .attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.88)')
       .attr('pointer-events','none')
-      .text(n.name.length>17?n.name.slice(0,17)+'…':n.name);
+      .text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
 
-    /* 이벤트 */
     ng.on('mouseover',(e)=>{
         tooltip.style.display='block';
-        tooltip.textContent=n.isTag?`${n.name}  (${lc[n.id]||0}개 노트)`:n.name+(n.tags?.length?'  '+n.tags.map(t=>'#'+t).join(' '):'');
+        tooltip.textContent=n.isTag?`${n.name} (${lc[n.id]||0}개 노트)`:n.name+(n.tags?.length?'  '+n.tags.map(t=>'#'+t).join(' '):'');
         const conn=new Set([n.id]);
-        links.forEach(l=>{const s=l.source?.id||l.source,t=l.target?.id||l.target;if(s===n.id)conn.add(t);if(t===n.id)conn.add(s);});
+        links.forEach(l=>{const s=l.source?.id||l.source,t2=l.target?.id||l.target;if(s===n.id)conn.add(t2);if(t2===n.id)conn.add(s);});
         linkEls.forEach((line,i)=>{
           const l=linkData[i],hit=l.src.id===n.id||l.tgt.id===n.id;
-          line.attr('stroke',hit?(l.type==='tag'?'rgba(74,222,128,0.95)':'rgba(200,220,255,0.9)'):(l.type==='tag'?'rgba(74,222,128,0.05)':'rgba(160,195,255,0.03)'))
-              .attr('stroke-width',hit?2.5:0.3);
+          line.attr('stroke',hit?(l.type==='tag'?'rgba(74,222,128,0.95)':'rgba(200,225,255,0.9)'):(l.type==='tag'?'rgba(74,222,128,0.05)':'rgba(160,200,255,0.03)'))
+              .attr('stroke-width',hit?2.5:0.25);
         });
         nodeLayer.selectAll('circle.nbody').attr('fill-opacity',0.07);
-        conn.forEach(id=>{
-          nodeLayer.selectAll('circle.nbody').filter(function(d2){return d2&&d2.id===id;}).attr('fill-opacity',0.95);
-        });
+        conn.forEach(id=>{nodeLayer.selectAll('circle.nbody').filter(function(d2){return d2&&d2.id===id;}).attr('fill-opacity',0.95);});
         ng.select('circle.nbody').attr('fill-opacity',1);
         ng.select('circle.nhalo').attr('stroke-opacity',0.9).attr('r',nodeR(n)+11);
       })
       .on('mousemove',e=>{tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY-30)+'px';})
       .on('mouseout',()=>{
         tooltip.style.display='none';
-        linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('stroke',l.type==='tag'?'rgba(74,222,128,0.4)':'rgba(160,195,255,0.14)').attr('stroke-width',l.type==='tag'?1:0.6);});
+        linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)').attr('stroke-width',l.type==='tag'?1.2:0.7);});
         nodeLayer.selectAll('circle.nbody').attr('fill-opacity',function(d2){return d2?.isTag?0.95:0.88;});
-        ng.select('circle.nhalo').attr('stroke-opacity',n.isTag?0.45:0.2).attr('r',nodeR(n)+(n.isTag?7:5));
+        ng.select('circle.nhalo').attr('stroke-opacity',n.isTag?0.5:0.22).attr('r',nodeR(n)+(n.isTag?7:5));
       })
       .on('click',(e)=>{e.stopPropagation();if(!n.isTag)loadObsidianFileByPath(n.path,n.name,n.folder);});
+
+    nodeGroups.push({ n, ng });
   });
 
-  /* ── tick ── */
-  sim.on('tick',()=>{
-    /* 링크 위치 */
+  /* ── 렌더 함수 ── */
+  function render() {
+    /* 격자선 */
+    gridG.selectAll('*').remove();
+    /* 위도선 */
+    for (let lat=-60; lat<=60; lat+=30) {
+      const latR = lat*Math.PI/180;
+      const pts = [];
+      for (let lng=-180; lng<=180; lng+=5) {
+        const p = project(latR, lng*Math.PI/180);
+        if (p.z > -0.1) pts.push([p.x, p.y]);
+        else if (pts.length) {
+          if (pts.length > 1) {
+            gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
+              .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);
+          }
+          pts.length = 0;
+        }
+      }
+      if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
+        .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);
+    }
+    /* 경도선 */
+    for (let lng=-180; lng<180; lng+=30) {
+      const lngR = lng*Math.PI/180;
+      const pts = [];
+      for (let lat=-85; lat<=85; lat+=4) {
+        const p = project(lat*Math.PI/180, lngR);
+        if (p.z > -0.1) pts.push([p.x, p.y]);
+        else if (pts.length) {
+          if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
+            .attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);
+          pts.length = 0;
+        }
+      }
+      if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
+        .attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);
+    }
+    /* 적도 강조 */
+    const eqPts = [];
+    for (let lng=-180; lng<=180; lng+=3) {
+      const p=project(0, lng*Math.PI/180);
+      if(p.z>-0.05) eqPts.push([p.x,p.y]);
+    }
+    if(eqPts.length>1) gridG.append('polyline').attr('points',eqPts.map(p=>p.join(',')).join(' '))
+      .attr('fill','none').attr('stroke','rgba(100,200,255,0.22)').attr('stroke-width',1);
+
+    /* 노드 위치 업데이트 */
+    nodeGroups.forEach(({n, ng}) => {
+      const p = project(n._lat, n._lng);
+      const visible = p.z > -0.05;
+      const op  = visible ? Math.max(0, Math.min(1, (p.z+0.1)*1.8)) : 0;
+      const sc  = visible ? 0.55 + p.z*0.5  : 0;
+      ng.attr('transform',`translate(${p.x},${p.y}) scale(${Math.max(0,sc)})`)
+        .attr('opacity', op)
+        .style('display', op<0.02?'none':null);
+      n._px=p.x; n._py=p.y; n._pz=p.z; n._vis=visible;
+    });
+
+    /* 링크 위치 업데이트 */
     linkEls.forEach((line,i)=>{
       const l=linkData[i];
-      line.attr('x1',l.src.x).attr('y1',l.src.y).attr('x2',l.tgt.x).attr('y2',l.tgt.y);
+      if(!l.src._vis&&!l.tgt._vis){line.style('display','none');return;}
+      line.style('display',null)
+        .attr('x1',l.src._px).attr('y1',l.src._py)
+        .attr('x2',l.tgt._px).attr('y2',l.tgt._py)
+        .attr('opacity',Math.max(0,(Math.min(l.src._pz||0,l.tgt._pz||0)+0.1)*0.9));
     });
-    /* 노드 위치 */
-    nodeLayer.selectAll('g').each(function(d,i){
-      if (nodes[i]) d3.select(this).attr('transform',`translate(${nodes[i].x||0},${nodes[i].y||0})`);
-    });
-    /* 폴더 영역 원 위치 - 해당 폴더 노드들의 중심 추적 */
-    fileFolders.forEach(fol=>{
-      const fnodes = nodes.filter(n=>!n.isTag&&n.folder===fol&&n.x&&n.y);
-      if (!fnodes.length) return;
-      const mx = d3.mean(fnodes,d=>d.x), my = d3.mean(fnodes,d=>d.y);
-      const maxDist = d3.max(fnodes,d=>Math.hypot(d.x-mx,d.y-my));
-      const r = Math.max(40, (maxDist||0)+30);
-      areaCircles[fol].attr('cx',mx).attr('cy',my).attr('r',r);
-      areaCircles[fol+'_lbl']?.attr('x',mx).attr('y',my-r-8);
-    });
-  });
+  }
 
+  /* ── 자동 회전 ── */
+  function animate() {
+    if (!graphPaused) rotY += 0.004;
+    render();
+    window._globeRAF = requestAnimationFrame(animate);
+  }
+  animate();
+
+  /* ── 드래그 회전 ── */
+  svg.on('mousedown',(e)=>{
+    if(e.target.closest&&e.target.closest('g')) return; // 노드 드래그 방지
+    isDragging=true; dragX0=e.clientX; dragY0=e.clientY; rotY0=rotY; rotX0=rotX;
+  });
+  svg.on('mousemove',(e)=>{
+    if(!isDragging) return;
+    rotY = rotY0+(e.clientX-dragX0)*0.007;
+    rotX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotX0-(e.clientY-dragY0)*0.007));
+  });
+  svg.on('mouseup mouseleave',()=>{ isDragging=false; });
+
+  /* 줌은 지구 크기 조절 (스크롤) */
+  graphSvg = svg; graphZoom = null;
   svg.on('click',()=>{tooltip.style.display='none';});
 }
 
