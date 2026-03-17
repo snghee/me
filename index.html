@@ -1687,17 +1687,28 @@ function drawGraph(svgEl, nodes, links) {
   }
   animate();
 
-  /* ── 드래그 회전 ── */
+  /* ── 드래그 회전 + 클릭 토글 ── */
+  let dragMoved = false;
   svg.on('mousedown',(e)=>{
-    if(e.target.closest&&e.target.closest('g')) return; // 노드 드래그 방지
-    isDragging=true; dragX0=e.clientX; dragY0=e.clientY; rotY0=rotY; rotX0=rotX;
+    if(e.target.closest&&e.target.closest('g[style*="cursor"]')) return;
+    isDragging=true; dragMoved=false;
+    dragX0=e.clientX; dragY0=e.clientY; rotY0=rotY; rotX0=rotX;
   });
   svg.on('mousemove',(e)=>{
     if(!isDragging) return;
-    rotY = rotY0+(e.clientX-dragX0)*0.007;
-    rotX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotX0-(e.clientY-dragY0)*0.007));
+    const dx=e.clientX-dragX0, dy=e.clientY-dragY0;
+    if(Math.abs(dx)>3||Math.abs(dy)>3) dragMoved=true;
+    rotY = rotY0+dx*0.007;
+    rotX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotX0-dy*0.007));
   });
-  svg.on('mouseup mouseleave',()=>{ isDragging=false; });
+  svg.on('mouseup',(e)=>{
+    if(isDragging && !dragMoved) {
+      /* 드래그 없이 클릭 → 회전 토글 */
+      toggleSimulation();
+    }
+    isDragging=false;
+  });
+  svg.on('mouseleave',()=>{ isDragging=false; });
 
   /* 줌은 지구 크기 조절 (스크롤) */
   graphSvg = svg; graphZoom = null;
