@@ -1930,7 +1930,7 @@ function renderEditor(name, folder) {
     b.className = cls;
     b.innerHTML = html;
     b.style.cssText = 'padding:3px 9px;font-size:11px;white-space:nowrap;flex-shrink:0;' + (extraStyle||'');
-    b.addEventListener('click', handler);
+    if (handler) b.addEventListener('click', handler);
     return b;
   }
   function sep() {
