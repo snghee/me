@@ -1905,17 +1905,16 @@ function renderEditor(name, folder) {
   const isEdit    = _editorMode === 'edit';
   const isSplit   = _editorMode === 'split';
   const isPreview = _editorMode === 'preview';
-  const editorH   = 'height:calc(100vh - 84px)'; // 헤더 1줄
 
-  // ── 헤더 1행: [경로+제목] [버튼들] ──
+  /* ── 헤더 ── */
   const headerEl = document.createElement('div');
-  headerEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:5px 0;border-bottom:1px solid #e8edf2;flex-shrink:0;min-height:38px;';
+  headerEl.style.cssText = 'display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid #e8edf2;flex-shrink:0;';
 
-  // 왼쪽: 경로 + 제목 (한 줄)
+  /* 제목 영역 */
   const titleWrap = document.createElement('div');
-  titleWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;margin-right:auto;flex-shrink:1;overflow:hidden;';
+  titleWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;margin-right:auto;overflow:hidden;';
   const bc = document.createElement('div');
-  bc.style.cssText = 'font-size:9.5px;color:#aab;line-height:1;margin-bottom:1px;';
+  bc.style.cssText = 'font-size:9.5px;color:#aab;line-height:1.2;';
   bc.textContent = '옵시디안' + (folder && folder!=='루트' ? ' › ' + folder : '');
   const titleDiv = document.createElement('div');
   titleDiv.style.cssText = 'font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
@@ -1925,138 +1924,128 @@ function renderEditor(name, folder) {
   titleWrap.appendChild(titleDiv);
   headerEl.appendChild(titleWrap);
 
-  // 오른쪽 버튼 그룹
-  const mkBtn = (label, cls, onclick, style='') => {
+  /* 버튼 생성 헬퍼 */
+  function mkB(html, cls, handler, extraStyle) {
     const b = document.createElement('button');
-    b.className = cls; b.innerHTML = label;
-    b.style.cssText = 'padding:3px 9px;font-size:11px;white-space:nowrap;flex-shrink:0;' + style;
-    b.onclick = onclick;
+    b.className = cls;
+    b.innerHTML = html;
+    b.style.cssText = 'padding:3px 9px;font-size:11px;white-space:nowrap;flex-shrink:0;' + (extraStyle||'');
+    b.addEventListener('click', handler);
     return b;
-  };
+  }
+  function sep() {
+    const d = document.createElement('div');
+    d.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
+    return d;
+  }
 
-  const mkModeBtn = (label, mode) => {
-    const b = mkBtn(label, 'editor-mode-btn' + (_editorMode===mode?' active':''), ()=>setEditorMode(mode,name,folder));
-    return b;
-  };
+  /* 모드 버튼 */
+  headerEl.appendChild(mkB('미리보기','editor-mode-btn'+(isPreview?' active':''),()=>setEditorMode('preview',name,folder)));
+  headerEl.appendChild(mkB('편집',    'editor-mode-btn'+(isEdit   ?' active':''),()=>setEditorMode('edit',   name,folder)));
+  headerEl.appendChild(mkB('분할',    'editor-mode-btn'+(isSplit  ?' active':''),()=>setEditorMode(isSplit?'preview':'split',name,folder)));
+  headerEl.appendChild(sep());
 
-  headerEl.appendChild(mkModeBtn('미리보기','preview'));
-  headerEl.appendChild(mkModeBtn('편집','edit'));
-  headerEl.appendChild(mkModeBtn('분할', 'editor-mode-btn'+(isSplit?' active':''), ()=>setEditorMode(isSplit?'preview':'split',name,folder)));
+  /* 저장/다운로드 */
+  const saveBtn = mkB('저장','editor-save-btn',()=>saveToGithub(_currentFileName,_currentFileFolder));
+  saveBtn.id = 'save-btn';
+  headerEl.appendChild(saveBtn);
+  headerEl.appendChild(mkB('⬇','editor-toolbar-btn',()=>downloadObsidianFile(_currentFilePath,name),'padding:3px 8px;'));
 
-  const sep1 = document.createElement('div');
-  sep1.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
-  headerEl.appendChild(sep1);
-
-  headerEl.appendChild(mkBtn('저장', 'editor-save-btn', ()=>saveToGithub(_currentFileName,_currentFileFolder), 'padding:3px 11px;'));
-  headerEl.appendChild(mkBtn('⬇', 'editor-toolbar-btn', ()=>downloadObsidianFile(_currentFilePath,name), 'padding:3px 8px;font-size:12px;'));
-
-  // ── 서식 버튼 토글 (편집/분할 모드) ──
-  let _fmtBarEl = null;
+  /* 서식 토글 버튼 (편집/분할만) */
+  let fmtBarEl = null;
   if (!isPreview) {
-    const sep2 = document.createElement('div');
-    sep2.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
-    headerEl.appendChild(sep2);
+    headerEl.appendChild(sep());
 
-    const fmtToggle = document.createElement('button');
-    fmtToggle.className = 'editor-toolbar-btn';
-    fmtToggle.innerHTML = '✏ 서식';
-    fmtToggle.title = '서식 도구 열기/닫기';
-    fmtToggle.style.cssText = 'padding:3px 9px;font-size:11px;flex-shrink:0;';
-    headerEl.appendChild(fmtToggle);
+    const fmtToggleBtn = mkB('✏ 서식','editor-toolbar-btn',null);
+    headerEl.appendChild(fmtToggleBtn);
 
-    // 서식 버튼 바 (기본 숨김)
-    const fmtBar = document.createElement('div');
-    fmtBar.id = 'fmt-bar';
-    fmtBar.style.cssText = 'display:none;align-items:center;gap:2px;flex-wrap:wrap;padding:4px 0 3px;border-bottom:1px solid #f0f4f8;flex-shrink:0;';
+    /* 서식 바 */
+    fmtBarEl = document.createElement('div');
+    fmtBarEl.style.cssText = 'display:none;align-items:center;gap:2px;flex-wrap:wrap;padding:3px 0;border-bottom:1px solid #f0f4f8;flex-shrink:0;';
 
-    function wrapSel(before, after='', placeholder='텍스트') {
+    function wrapSel(before, after, ph) {
       const ta = document.getElementById('editor-textarea'); if (!ta) return;
-      const s=ta.selectionStart, e=ta.selectionEnd, sel=ta.value.slice(s,e)||placeholder;
+      const s=ta.selectionStart, e=ta.selectionEnd;
+      const sel = ta.value.slice(s,e) || (ph||'텍스트');
       ta.setRangeText(before+sel+after, s, e, 'select');
-      ta.selectionStart=s+before.length; ta.selectionEnd=s+before.length+sel.length;
+      ta.selectionStart = s+before.length;
+      ta.selectionEnd   = s+before.length+sel.length;
       ta.focus(); ta.dispatchEvent(new Event('input'));
     }
     function prependLine(prefix) {
       const ta = document.getElementById('editor-textarea'); if (!ta) return;
       const s=ta.selectionStart, val=ta.value;
-      const ls=val.lastIndexOf('\n',s-1)+1, le=val.indexOf('\n',s);
-      const end=le===-1?val.length:le, line=val.slice(ls,end);
-      ta.setRangeText(line.startsWith(prefix)?line.slice(prefix.length):prefix+line, ls, end, 'end');
+      const ls=val.lastIndexOf('\n',s-1)+1;
+      const le=val.indexOf('\n',s); const end=le===-1?val.length:le;
+      const line=val.slice(ls,end);
+      ta.setRangeText(line.startsWith(prefix)?line.slice(prefix.length):prefix+line,ls,end,'end');
       ta.focus(); ta.dispatchEvent(new Event('input'));
     }
     function insertLine(text) {
       const ta = document.getElementById('editor-textarea'); if (!ta) return;
       const s=ta.selectionStart;
-      ta.setRangeText('\n'+text+'\n', s, s, 'end');
+      ta.setRangeText('\n'+text+'\n',s,s,'end');
       ta.focus(); ta.dispatchEvent(new Event('input'));
     }
 
-    const fmts = [
-      {icon:'<b>B</b>',title:'굵게 Ctrl+B',fn:()=>wrapSel('**','**','굵은')},
-      {icon:'<i>I</i>',title:'기울임 Ctrl+I',fn:()=>wrapSel('*','*','기울임')},
-      {icon:'<s>S</s>',title:'취소선',fn:()=>wrapSel('~~','~~','취소선')},
-      {icon:'`',title:'인라인코드',fn:()=>wrapSel('`','`','코드')},
-      {icon:'H1',title:'제목1',fn:()=>prependLine('# ')},
-      {icon:'H2',title:'제목2',fn:()=>prependLine('## ')},
-      {icon:'H3',title:'제목3',fn:()=>prependLine('### ')},
-      {icon:'❝',title:'인용',fn:()=>prependLine('> ')},
-      {icon:'—',title:'구분선',fn:()=>insertLine('---')},
-      {icon:'☑',title:'체크박스',fn:()=>prependLine('- [ ] ')},
-      {icon:'🔗',title:'링크 Ctrl+K',fn:()=>wrapSel('[','](https://)','링크')},
-      {icon:'⌥',title:'코드블록',fn:()=>wrapSel('\n```\n','\n```\n','코드')},
-      {icon:'▤',title:'표',fn:()=>insertLine('| 헤더1 | 헤더2 |\n| --- | --- |\n| 셀1 | 셀2 |')},
-    ];
-    fmts.forEach(({icon,title,fn}) => {
+    [
+      ['<b>B</b>','굵게',    ()=>wrapSel('**','**','굵은텍스트')],
+      ['<i>I</i>','기울임',  ()=>wrapSel('*','*','기울임텍스트')],
+      ['<s>S</s>','취소선',  ()=>wrapSel('~~','~~','취소선')],
+      ['`',       '코드',    ()=>wrapSel('`','`','코드')],
+      ['H1',      '제목1',   ()=>prependLine('# ')],
+      ['H2',      '제목2',   ()=>prependLine('## ')],
+      ['H3',      '제목3',   ()=>prependLine('### ')],
+      ['❝',       '인용',    ()=>prependLine('> ')],
+      ['—',       '구분선',  ()=>insertLine('---')],
+      ['☑',       '체크박스',()=>prependLine('- [ ] ')],
+      ['🔗',      '링크',    ()=>wrapSel('[','](https://)','링크텍스트')],
+      ['⌥',       '코드블록',()=>wrapSel('\n```\n','\n```\n','코드')],
+      ['▤',       '표',      ()=>insertLine('| 헤더1 | 헤더2 |\n| --- | --- |\n| 셀1 | 셀2 |')],
+    ].forEach(([icon,title,fn])=>{
       const b = document.createElement('button');
       b.className='editor-toolbar-btn fmt-btn'; b.title=title; b.innerHTML=icon;
       b.style.cssText='padding:2px 6px;font-size:11px;min-width:24px;';
-      b.onclick=fn; fmtBar.appendChild(b);
+      b.addEventListener('click',fn);
+      fmtBarEl.appendChild(b);
     });
 
     let fmtOpen = false;
-    fmtToggle.onclick = () => {
+    fmtToggleBtn.addEventListener('click', ()=>{
       fmtOpen = !fmtOpen;
-      fmtBar.style.display = fmtOpen ? 'flex' : 'none';
-      fmtToggle.style.background = fmtOpen ? '#e2e8f0' : '';
-      /* 편집창 높이 조정 */
-      const ta = document.getElementById('editor-textarea');
-      const pv = document.getElementById('editor-preview');
-      const h = fmtOpen ? 'calc(100vh - 114px)' : 'calc(100vh - 84px)';
-      if (ta) ta.style.height = h;
-      if (pv) pv.style.height = h;
-      const pane = document.querySelector('.preview-pane:not(#editor-preview)');
-      if (pane) pane.style.height = h;
-    };
+      fmtBarEl.style.display = fmtOpen ? 'flex' : 'none';
+      fmtToggleBtn.style.background = fmtOpen ? '#e2e8f0' : '';
+      fmtToggleBtn.style.borderColor = fmtOpen ? '#cbd5e1' : '';
+    });
 
     setTimeout(()=>{
       const ta=document.getElementById('editor-textarea'); if(!ta) return;
-      ta.addEventListener('keydown',function(e){
-        if((e.ctrlKey||e.metaKey)&&e.key==='b'){e.preventDefault();wrapSel('**','**','굵은');}
-        if((e.ctrlKey||e.metaKey)&&e.key==='i'){e.preventDefault();wrapSel('*','*','기울임');}
-        if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();wrapSel('[','](https://)','링크');}
+      ta.addEventListener('keydown', e=>{
+        if((e.ctrlKey||e.metaKey)&&e.key==='b'){e.preventDefault();wrapSel('**','**','굵은텍스트');}
+        if((e.ctrlKey||e.metaKey)&&e.key==='i'){e.preventDefault();wrapSel('*','*','기울임텍스트');}
+        if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();wrapSel('[','](https://)','링크텍스트');}
         if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.setRangeText('  ',s,s,'end');ta.dispatchEvent(new Event('input'));}
       });
     },50);
-
-    // fmtBar는 inner에 별도 추가
-    _fmtBarEl = fmtBar;
   }
 
-  // ── 본문 ──
+  /* ── 본문 ── */
+  const bodyH = 'calc(100vh - 88px)';
   let bodyEl;
   if (isPreview) {
     bodyEl = document.createElement('div');
     bodyEl.className = 'preview-pane markdown-body';
-    bodyEl.style.cssText = editorH + ';overflow-y:auto;padding:10px 0;';
+    bodyEl.style.cssText = `height:${bodyH};overflow-y:auto;padding:10px 0;`;
     bodyEl.innerHTML = mdToHtml(_currentRawContent);
   } else if (isEdit) {
     bodyEl = document.createElement('textarea');
     bodyEl.className = 'editor-pane'; bodyEl.id = 'editor-textarea';
-    bodyEl.style.cssText = editorH + ';width:100%;resize:none;';
+    bodyEl.style.cssText = `height:${bodyH};width:100%;resize:none;`;
     bodyEl.value = _currentRawContent;
   } else {
-    bodyEl = document.createElement('div'); bodyEl.className = 'split-wrap';
-    bodyEl.style.height = editorH.replace('height:','');
+    bodyEl = document.createElement('div');
+    bodyEl.className = 'split-wrap';
+    bodyEl.style.cssText = `height:${bodyH};`;
     const ta = document.createElement('textarea');
     ta.className='editor-pane'; ta.id='editor-textarea';
     ta.style.cssText='height:100%;width:100%;resize:none;'; ta.value=_currentRawContent;
@@ -2067,12 +2056,12 @@ function renderEditor(name, folder) {
     bodyEl.appendChild(ta); bodyEl.appendChild(prev);
   }
 
-  // ── 조립 ──
+  /* ── 조립 ── */
   const inner = document.createElement('div');
   inner.className = 'file-inner';
   inner.style.cssText = 'padding:5px 40px 0;display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden;';
   inner.appendChild(headerEl);
-  if (typeof _fmtBarEl !== 'undefined' && _fmtBarEl) inner.appendChild(_fmtBarEl);
+  if (fmtBarEl) inner.appendChild(fmtBarEl);
   inner.appendChild(bodyEl);
 
   contentEl.className = 'content markdown-body';
