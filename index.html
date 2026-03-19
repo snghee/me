@@ -1950,13 +1950,13 @@ function renderEditor(name, folder) {
   headerEl.appendChild(mkBtn('저장', 'editor-save-btn', ()=>saveToGithub(_currentFileName,_currentFileFolder), 'padding:3px 11px;'));
   headerEl.appendChild(mkBtn('⬇', 'editor-toolbar-btn', ()=>downloadObsidianFile(_currentFilePath,name), 'padding:3px 8px;font-size:12px;'));
 
-  // 서식 버튼 토글 (편집/분할 모드)
+  // ── 서식 버튼 토글 (편집/분할 모드) ──
+  let _fmtBarEl = null;
   if (!isPreview) {
     const sep2 = document.createElement('div');
     sep2.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
     headerEl.appendChild(sep2);
 
-    // 서식 토글 버튼
     const fmtToggle = document.createElement('button');
     fmtToggle.className = 'editor-toolbar-btn';
     fmtToggle.innerHTML = '✏ 서식';
@@ -2039,7 +2039,7 @@ function renderEditor(name, folder) {
     },50);
 
     // fmtBar는 inner에 별도 추가
-    var _fmtBarEl = fmtBar;
+    _fmtBarEl = fmtBar;
   }
 
   // ── 본문 ──
