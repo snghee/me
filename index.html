@@ -390,6 +390,7 @@ const menuData = {
   "소개":              { "회사 개요":"company-overview.md", "미션 & 비전":"mission-vision.md", "팀 소개":"team-intro.md", "📊 접속 통계":"INTRO_STATS" },
   "구글드라이브": null,
   "옵시디안":    null,
+  "실행":        null,
   "파일":              { "새 문서 작성":"NEW_DOC", "삭제":"DELETE_FILE", "사용 설명서":"user-manual.md", "FAQ":"faq.md", "기술 가이드":"tech-guide.md", "📊 다운로드 통계":"STATS" }
 };
 
@@ -487,6 +488,7 @@ function renderMenu() {
           console.log('[MENU] opened dd classList:', capturedDd.classList.toString());
           if (capturedFolder === '구글드라이브' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
           if (capturedFolder === '옵시디안'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
+          if (capturedFolder === '실행'         && capturedDd.childElementCount === 0) await populateExecMenu(capturedDd);
         }
       };
     })(id, folder, dd));
@@ -760,7 +762,131 @@ async function populateObsidianMenu(dd) {
   } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ GitHub 로드 실패: ${e.message}</div>`; }
 }
 
-async function downloadObsidianFile(filePath, name) {
+async function populateExecMenu(dd) {
+  dd.innerHTML = '<div class="dd-item">⏳ JS 파일 불러오는 중...</div>';
+  try {
+    const r = await fetch(`${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`);
+    if (!r.ok) throw new Error('GitHub 로드 실패');
+    const data = await r.json();
+    const jsFiles = data.tree.filter(f => f.type === 'blob' && f.path.endsWith('.js') && !f.path.startsWith('.'));
+
+    dd.innerHTML = '';
+    if (!jsFiles.length) {
+      dd.innerHTML = '<div class="dd-item" style="color:#94a3b8">(JS 파일 없음)</div>';
+      return;
+    }
+
+    /* 설명 헤더 */
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:6px 14px 4px;font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.08);';
+    hdr.textContent = '⚡ JS 스크립트 실행';
+    dd.appendChild(hdr);
+
+    /* 폴더별 그룹 */
+    const grouped = {};
+    jsFiles.forEach(f => {
+      const parts = f.path.split('/');
+      const name = parts[parts.length-1];
+      const folder = parts.length > 1 ? parts.slice(0,-1).join('/') : '루트';
+      (grouped[folder] = grouped[folder]||[]).push({ name, path: f.path });
+    });
+
+    const runJs = async (filePath, fileName) => {
+      closeAll();
+      try {
+        showToast(`⚡ ${fileName} 실행 중...`);
+        const raw = await ghGetRawFile(filePath, true);
+        /* console 출력 캡처 */
+        const logs = [];
+        const origLog = console.log, origWarn = console.warn, origErr = console.error;
+        console.log  = (...a) => { logs.push('📋 '+a.join(' ')); origLog(...a); };
+        console.warn = (...a) => { logs.push('⚠️ '+a.join(' ')); origWarn(...a); };
+        console.error= (...a) => { logs.push('❌ '+a.join(' ')); origErr(...a); };
+        let result;
+        try {
+          // eslint-disable-next-line no-new-func
+          result = await (new Function('fetch','showToast','loadObsidianFileByPath',
+            '"use strict";\n'+raw))(fetch, showToast, loadObsidianFileByPath);
+        } finally {
+          console.log = origLog; console.warn = origWarn; console.error = origErr;
+        }
+        /* 결과 팝업 */
+        showExecResult(fileName, logs, result);
+      } catch(e) {
+        showToast('❌ 실행 오류: ' + e.message, true);
+      }
+    };
+
+    /* 루트 파일 */
+    if (grouped['루트']) {
+      grouped['루트'].forEach(f => {
+        const item = makeDdItem('⚡ '+f.name, () => runJs(f.path, f.name));
+        item.title = f.path;
+        dd.appendChild(item);
+      });
+    }
+    /* 하위 폴더 */
+    Object.keys(grouped).sort().filter(fol=>fol!=='루트').forEach(fol => {
+      const folDiv = document.createElement('div');
+      folDiv.className = 'dd-folder';
+      folDiv.innerHTML = `<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 ${fol}`;
+      const list = document.createElement('div');
+      list.className = 'folder-list'; list.style.display = 'none';
+      folDiv.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = list.style.display !== 'none';
+        list.style.display = open ? 'none' : 'block';
+        const arrow = folDiv.querySelector('.folder-arrow');
+        if (arrow) arrow.innerHTML = open
+          ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>'
+          : '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>';
+      });
+      grouped[fol].forEach(f => {
+        const item = makeDdItem('⚡ '+f.name, () => runJs(f.path, f.name));
+        item.style.paddingLeft = '28px'; item.title = f.path;
+        list.appendChild(item);
+      });
+      dd.appendChild(folDiv); dd.appendChild(list);
+    });
+  } catch(e) {
+    dd.innerHTML = `<div class="dd-item" style="color:#e74c3c">⚠️ ${e.message}</div>`;
+  }
+}
+
+function showExecResult(fileName, logs, result) {
+  document.getElementById('exec-result-popup')?.remove();
+  const popup = document.createElement('div');
+  popup.id = 'exec-result-popup';
+  popup.style.cssText = `
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#0f172a;border:1px solid rgba(99,102,241,0.45);border-radius:12px;
+    padding:18px 20px;min-width:320px;max-width:520px;max-height:70vh;overflow-y:auto;
+    z-index:99999;box-shadow:0 16px 48px rgba(0,0,0,0.7);animation:fadeUp .18s ease;
+  `;
+  const resultStr = result !== undefined ? String(result) : '';
+  popup.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="color:#818cf8;font-weight:700;font-size:13px">⚡ ${fileName}</div>
+      <button onclick="document.getElementById('exec-result-popup')?.remove()"
+        style="background:none;border:none;color:#64748b;cursor:pointer;font-size:17px">✕</button>
+    </div>
+    ${logs.length ? `
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px">콘솔 출력</div>
+      <pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#94a3b8;overflow-x:auto;margin-bottom:10px;white-space:pre-wrap">${logs.map(l=>l.replace(/</g,'&lt;')).join('\n')}</pre>
+    ` : ''}
+    ${resultStr ? `
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px">반환값</div>
+      <pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#6ee7b7;overflow-x:auto;white-space:pre-wrap">${resultStr.replace(/</g,'&lt;')}</pre>
+    ` : (!logs.length ? '<div style="color:#4ade80;font-size:13px">✅ 실행 완료</div>' : '')}
+  `;
+  document.body.appendChild(popup);
+  setTimeout(()=>{
+    const close=(e)=>{if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',close);}};
+    document.addEventListener('click',close);
+  },50);
+}
+
+
   try {
     const r = await fetch(
       `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${filePath}`
@@ -1779,97 +1905,180 @@ function renderEditor(name, folder) {
   const isEdit    = _editorMode === 'edit';
   const isSplit   = _editorMode === 'split';
   const isPreview = _editorMode === 'preview';
-  const editorH   = 'height:calc(100vh - 240px)';
+  const editorH   = 'height:calc(100vh - 84px)'; // 헤더 1줄
 
-  // ── 툴바 DOM 직접 생성 ──
-  const toolbarEl = document.createElement('div');
-  toolbarEl.className = 'editor-toolbar';
+  // ── 헤더 1행: [경로+제목] [버튼들] ──
+  const headerEl = document.createElement('div');
+  headerEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:5px 0;border-bottom:1px solid #e8edf2;flex-shrink:0;min-height:38px;';
 
-  const mkModeBtn = (label, mode) => {
+  // 왼쪽: 경로 + 제목 (한 줄)
+  const titleWrap = document.createElement('div');
+  titleWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;margin-right:auto;flex-shrink:1;overflow:hidden;';
+  const bc = document.createElement('div');
+  bc.style.cssText = 'font-size:9.5px;color:#aab;line-height:1;margin-bottom:1px;';
+  bc.textContent = '옵시디안' + (folder && folder!=='루트' ? ' › ' + folder : '');
+  const titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  titleDiv.textContent = name.replace(/\.md$/i,'');
+  titleDiv.title = name;
+  titleWrap.appendChild(bc);
+  titleWrap.appendChild(titleDiv);
+  headerEl.appendChild(titleWrap);
+
+  // 오른쪽 버튼 그룹
+  const mkBtn = (label, cls, onclick, style='') => {
     const b = document.createElement('button');
-    b.className = 'editor-mode-btn' + (_editorMode === mode ? ' active' : '');
-    b.textContent = label;
-    b.onclick = () => setEditorMode(mode, name, folder);
+    b.className = cls; b.innerHTML = label;
+    b.style.cssText = 'padding:3px 9px;font-size:11px;white-space:nowrap;flex-shrink:0;' + style;
+    b.onclick = onclick;
     return b;
   };
-  toolbarEl.appendChild(mkModeBtn('미리보기', 'preview'));
-  toolbarEl.appendChild(mkModeBtn('편집', 'edit'));
 
-  const splitBtn = document.createElement('button');
-  splitBtn.className = 'editor-mode-btn' + (isSplit ? ' active' : '');
-  splitBtn.textContent = '분할';
-  splitBtn.onclick = () => setEditorMode(isSplit ? 'preview' : 'split', name, folder);
-  toolbarEl.appendChild(splitBtn);
+  const mkModeBtn = (label, mode) => {
+    const b = mkBtn(label, 'editor-mode-btn' + (_editorMode===mode?' active':''), ()=>setEditorMode(mode,name,folder));
+    return b;
+  };
 
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'editor-save-btn';
-  saveBtn.id = 'save-btn';
-  saveBtn.textContent = '저장';
-  saveBtn.onclick = () => saveToGithub(_currentFileName, _currentFileFolder);
-  toolbarEl.appendChild(saveBtn);
+  headerEl.appendChild(mkModeBtn('미리보기','preview'));
+  headerEl.appendChild(mkModeBtn('편집','edit'));
+  headerEl.appendChild(mkModeBtn('분할', 'editor-mode-btn'+(isSplit?' active':''), ()=>setEditorMode(isSplit?'preview':'split',name,folder)));
 
-  const sep = document.createElement('div');
-  sep.className = 'editor-toolbar-sep';
-  toolbarEl.appendChild(sep);
+  const sep1 = document.createElement('div');
+  sep1.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
+  headerEl.appendChild(sep1);
 
-  const dlBtn = document.createElement('button');
-  dlBtn.className = 'editor-toolbar-btn';
-  dlBtn.textContent = '다운로드';
-  dlBtn.onclick = () => downloadObsidianFile(_currentFilePath, name);
-  toolbarEl.appendChild(dlBtn);
+  headerEl.appendChild(mkBtn('저장', 'editor-save-btn', ()=>saveToGithub(_currentFileName,_currentFileFolder), 'padding:3px 11px;'));
+  headerEl.appendChild(mkBtn('⬇', 'editor-toolbar-btn', ()=>downloadObsidianFile(_currentFilePath,name), 'padding:3px 8px;font-size:12px;'));
+
+  // 서식 버튼 토글 (편집/분할 모드)
+  if (!isPreview) {
+    const sep2 = document.createElement('div');
+    sep2.style.cssText = 'width:1px;height:16px;background:#e2e8f0;flex-shrink:0;';
+    headerEl.appendChild(sep2);
+
+    // 서식 토글 버튼
+    const fmtToggle = document.createElement('button');
+    fmtToggle.className = 'editor-toolbar-btn';
+    fmtToggle.innerHTML = '✏ 서식';
+    fmtToggle.title = '서식 도구 열기/닫기';
+    fmtToggle.style.cssText = 'padding:3px 9px;font-size:11px;flex-shrink:0;';
+    headerEl.appendChild(fmtToggle);
+
+    // 서식 버튼 바 (기본 숨김)
+    const fmtBar = document.createElement('div');
+    fmtBar.id = 'fmt-bar';
+    fmtBar.style.cssText = 'display:none;align-items:center;gap:2px;flex-wrap:wrap;padding:4px 0 3px;border-bottom:1px solid #f0f4f8;flex-shrink:0;';
+
+    function wrapSel(before, after='', placeholder='텍스트') {
+      const ta = document.getElementById('editor-textarea'); if (!ta) return;
+      const s=ta.selectionStart, e=ta.selectionEnd, sel=ta.value.slice(s,e)||placeholder;
+      ta.setRangeText(before+sel+after, s, e, 'select');
+      ta.selectionStart=s+before.length; ta.selectionEnd=s+before.length+sel.length;
+      ta.focus(); ta.dispatchEvent(new Event('input'));
+    }
+    function prependLine(prefix) {
+      const ta = document.getElementById('editor-textarea'); if (!ta) return;
+      const s=ta.selectionStart, val=ta.value;
+      const ls=val.lastIndexOf('\n',s-1)+1, le=val.indexOf('\n',s);
+      const end=le===-1?val.length:le, line=val.slice(ls,end);
+      ta.setRangeText(line.startsWith(prefix)?line.slice(prefix.length):prefix+line, ls, end, 'end');
+      ta.focus(); ta.dispatchEvent(new Event('input'));
+    }
+    function insertLine(text) {
+      const ta = document.getElementById('editor-textarea'); if (!ta) return;
+      const s=ta.selectionStart;
+      ta.setRangeText('\n'+text+'\n', s, s, 'end');
+      ta.focus(); ta.dispatchEvent(new Event('input'));
+    }
+
+    const fmts = [
+      {icon:'<b>B</b>',title:'굵게 Ctrl+B',fn:()=>wrapSel('**','**','굵은')},
+      {icon:'<i>I</i>',title:'기울임 Ctrl+I',fn:()=>wrapSel('*','*','기울임')},
+      {icon:'<s>S</s>',title:'취소선',fn:()=>wrapSel('~~','~~','취소선')},
+      {icon:'`',title:'인라인코드',fn:()=>wrapSel('`','`','코드')},
+      {icon:'H1',title:'제목1',fn:()=>prependLine('# ')},
+      {icon:'H2',title:'제목2',fn:()=>prependLine('## ')},
+      {icon:'H3',title:'제목3',fn:()=>prependLine('### ')},
+      {icon:'❝',title:'인용',fn:()=>prependLine('> ')},
+      {icon:'—',title:'구분선',fn:()=>insertLine('---')},
+      {icon:'☑',title:'체크박스',fn:()=>prependLine('- [ ] ')},
+      {icon:'🔗',title:'링크 Ctrl+K',fn:()=>wrapSel('[','](https://)','링크')},
+      {icon:'⌥',title:'코드블록',fn:()=>wrapSel('\n```\n','\n```\n','코드')},
+      {icon:'▤',title:'표',fn:()=>insertLine('| 헤더1 | 헤더2 |\n| --- | --- |\n| 셀1 | 셀2 |')},
+    ];
+    fmts.forEach(({icon,title,fn}) => {
+      const b = document.createElement('button');
+      b.className='editor-toolbar-btn fmt-btn'; b.title=title; b.innerHTML=icon;
+      b.style.cssText='padding:2px 6px;font-size:11px;min-width:24px;';
+      b.onclick=fn; fmtBar.appendChild(b);
+    });
+
+    let fmtOpen = false;
+    fmtToggle.onclick = () => {
+      fmtOpen = !fmtOpen;
+      fmtBar.style.display = fmtOpen ? 'flex' : 'none';
+      fmtToggle.style.background = fmtOpen ? '#e2e8f0' : '';
+      /* 편집창 높이 조정 */
+      const ta = document.getElementById('editor-textarea');
+      const pv = document.getElementById('editor-preview');
+      const h = fmtOpen ? 'calc(100vh - 114px)' : 'calc(100vh - 84px)';
+      if (ta) ta.style.height = h;
+      if (pv) pv.style.height = h;
+      const pane = document.querySelector('.preview-pane:not(#editor-preview)');
+      if (pane) pane.style.height = h;
+    };
+
+    setTimeout(()=>{
+      const ta=document.getElementById('editor-textarea'); if(!ta) return;
+      ta.addEventListener('keydown',function(e){
+        if((e.ctrlKey||e.metaKey)&&e.key==='b'){e.preventDefault();wrapSel('**','**','굵은');}
+        if((e.ctrlKey||e.metaKey)&&e.key==='i'){e.preventDefault();wrapSel('*','*','기울임');}
+        if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();wrapSel('[','](https://)','링크');}
+        if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.setRangeText('  ',s,s,'end');ta.dispatchEvent(new Event('input'));}
+      });
+    },50);
+
+    // fmtBar는 inner에 별도 추가
+    var _fmtBarEl = fmtBar;
+  }
 
   // ── 본문 ──
   let bodyEl;
   if (isPreview) {
     bodyEl = document.createElement('div');
     bodyEl.className = 'preview-pane markdown-body';
-    bodyEl.style.cssText = editorH + ';overflow-y:auto;padding:8px 0';
+    bodyEl.style.cssText = editorH + ';overflow-y:auto;padding:10px 0;';
     bodyEl.innerHTML = mdToHtml(_currentRawContent);
   } else if (isEdit) {
     bodyEl = document.createElement('textarea');
-    bodyEl.className = 'editor-pane';
-    bodyEl.id = 'editor-textarea';
-    bodyEl.style.cssText = editorH + ';width:100%;resize:none';
+    bodyEl.className = 'editor-pane'; bodyEl.id = 'editor-textarea';
+    bodyEl.style.cssText = editorH + ';width:100%;resize:none;';
     bodyEl.value = _currentRawContent;
   } else {
-    bodyEl = document.createElement('div');
-    bodyEl.className = 'split-wrap';
+    bodyEl = document.createElement('div'); bodyEl.className = 'split-wrap';
+    bodyEl.style.height = editorH.replace('height:','');
     const ta = document.createElement('textarea');
-    ta.className = 'editor-pane';
-    ta.id = 'editor-textarea';
-    ta.style.cssText = editorH + ';width:100%;resize:none';
-    ta.value = _currentRawContent;
+    ta.className='editor-pane'; ta.id='editor-textarea';
+    ta.style.cssText='height:100%;width:100%;resize:none;'; ta.value=_currentRawContent;
     const prev = document.createElement('div');
-    prev.className = 'preview-pane markdown-body';
-    prev.id = 'editor-preview';
-    prev.style.cssText = editorH + ';overflow-y:auto;padding:16px;border:1px solid #e2e8f0;border-radius:8px';
-    prev.innerHTML = mdToHtml(_currentRawContent);
-    bodyEl.appendChild(ta);
-    bodyEl.appendChild(prev);
+    prev.className='preview-pane markdown-body'; prev.id='editor-preview';
+    prev.style.cssText='height:100%;overflow-y:auto;padding:16px;border:1px solid #e2e8f0;border-radius:8px;';
+    prev.innerHTML=mdToHtml(_currentRawContent);
+    bodyEl.appendChild(ta); bodyEl.appendChild(prev);
   }
 
-  // ── 컨테이너 조립 ──
+  // ── 조립 ──
   const inner = document.createElement('div');
   inner.className = 'file-inner';
-
-  const bc = document.createElement('div');
-  bc.className = 'breadcrumb';
-  bc.textContent = '옵시디안 > ' + folder + ' > ' + name;
-
-  const h2 = document.createElement('h2');
-  h2.style.marginBottom = '12px';
-  h2.textContent = name;
-
-  inner.appendChild(bc);
-  inner.appendChild(h2);
-  inner.appendChild(toolbarEl);
+  inner.style.cssText = 'padding:5px 40px 0;display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden;';
+  inner.appendChild(headerEl);
+  if (typeof _fmtBarEl !== 'undefined' && _fmtBarEl) inner.appendChild(_fmtBarEl);
   inner.appendChild(bodyEl);
 
   contentEl.className = 'content markdown-body';
   contentEl.innerHTML = '';
   contentEl.appendChild(inner);
 
-  // ── 이벤트 ──
   const ta = document.getElementById('editor-textarea');
   if (ta) { ta.addEventListener('input', onEditorInput); ta.focus(); }
 }
