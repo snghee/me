@@ -339,7 +339,6 @@ let _driveToken = null;
 let _driveTokenExp = 0;
 function getDriveToken() {
   return new Promise(async (res, rej) => {
-    // 유효한 토큰이 있으면 재사용
     if (_driveToken && Date.now() < _driveTokenExp) { res(_driveToken); return; }
     await loadGIS();
     if (!window.google?.accounts?.oauth2) { rej(new Error('Google GIS 로드 실패')); return; }
@@ -356,8 +355,6 @@ function getDriveToken() {
     client.requestAccessToken({ prompt: _driveToken ? '' : 'consent' });
   });
 }
-</script>
-<script>
 const GOOGLE_API_KEY    = 'AIzaSyDOIdawmHgkx2wV04ohDl8_jaDNhOjibdg';
 const CLIENT_ID         = '906251648544-lv0g297k3e0ckde767lvritqkmv6eben.apps.googleusercontent.com';
 const SERVICE_FOLDER_ID = '19VQbUHcEtMnTMR39ciOYMrS0RCGTAf7b';
@@ -2372,18 +2369,18 @@ function showTagPopup(tagNode, event, nodeById, links, container) {
     </div>
     <div style="font-size:11px;color:#64748b;margin-bottom:8px">${files.length}개 노트에서 사용</div>
     <div style="display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto">
-      ${files.map(f => `
-        <div onclick="document.getElementById('tag-popup')?.remove();loadObsidianFileByPath('${f.path}','${f.name}','${f.folder}')"
-          style="padding:6px 10px;background:rgba(255,255,255,0.04);border-radius:6px;cursor:pointer;
-                 font-size:12px;color:#c8d8f0;display:flex;align-items:center;gap:7px;
-                 border:1px solid transparent;transition:all .12s"
-          onmouseover="this.style.background='rgba(74,222,128,0.1)';this.style.borderColor='rgba(74,222,128,0.25)'"
-          onmouseout="this.style.background='rgba(255,255,255,0.04)';this.style.borderColor='transparent'">
-          <span style="opacity:.55;font-size:11px">📄</span>
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name.replace(/\.md$/i,'')}</span>
-          <span style="margin-left:auto;font-size:10px;color:#475569;white-space:nowrap">${f.folder!=='루트'?f.folder:''}</span>
-        </div>
-      `).join('')}
+      ${files.map(f =>
+        '<div onclick="document.getElementById(\'tag-popup\')?.remove();loadObsidianFileByPath(\'' + f.path + '\',\'' + f.name + '\',\'' + f.folder + '\')"' +
+        ' style="padding:6px 10px;background:rgba(255,255,255,0.04);border-radius:6px;cursor:pointer;' +
+        'font-size:12px;color:#c8d8f0;display:flex;align-items:center;gap:7px;' +
+        'border:1px solid transparent;transition:all .12s"' +
+        ' onmouseover="this.style.background=\'rgba(74,222,128,0.1)\';this.style.borderColor=\'rgba(74,222,128,0.25)\'"' +
+        ' onmouseout="this.style.background=\'rgba(255,255,255,0.04)\';this.style.borderColor=\'transparent\'">' +
+        '<span style="opacity:.55;font-size:11px">📄</span>' +
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.name.replace(/\.md$/i,'') + '</span>' +
+        '<span style="margin-left:auto;font-size:10px;color:#475569;white-space:nowrap">' + (f.folder!=='루트'?f.folder:'') + '</span>' +
+        '</div>'
+      ).join('')}
     </div>
   `;
 
