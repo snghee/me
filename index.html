@@ -2484,7 +2484,7 @@ try {
   _currentFileName   = filename;
   _currentFileFolder = isRoot ? '루트' : selFolder;
 
-  if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '저장'; } 
   showToast('✅ 저장 완료!');
   renderEditor(_currentFileName, _currentFileFolder);
 } catch(e) {
