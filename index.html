@@ -854,28 +854,23 @@ function showExecResult(fileName, logs, result) {
   document.getElementById('exec-result-popup')?.remove();
   const popup = document.createElement('div');
   popup.id = 'exec-result-popup';
-  popup.style.cssText = `
-    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:#0f172a;border:1px solid rgba(99,102,241,0.45);border-radius:12px;
-    padding:18px 20px;min-width:320px;max-width:520px;max-height:70vh;overflow-y:auto;
-    z-index:99999;box-shadow:0 16px 48px rgba(0,0,0,0.7);animation:fadeUp .18s ease;
-  `;
+  popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0f172a;border:1px solid rgba(99,102,241,0.45);border-radius:12px;padding:18px 20px;min-width:320px;max-width:520px;max-height:70vh;overflow-y:auto;z-index:99999;box-shadow:0 16px 48px rgba(0,0,0,0.7);animation:fadeUp .18s ease;';
   const resultStr = result !== undefined ? String(result) : '';
-  popup.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="color:#818cf8;font-weight:700;font-size:13px">⚡ ${fileName}</div>
-      <button onclick="document.getElementById('exec-result-popup')?.remove()"
-        style="background:none;border:none;color:#64748b;cursor:pointer;font-size:17px">✕</button>
-    </div>
-    ${logs.length ? `
-      <div style="font-size:11px;color:#64748b;margin-bottom:6px">콘솔 출력</div>
-      <pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#94a3b8;overflow-x:auto;margin-bottom:10px;white-space:pre-wrap">${logs.map(l=>l.replace(/</g,'&lt;')).join('\n')}</pre>
-    ` : ''}
-    ${resultStr ? `
-      <div style="font-size:11px;color:#64748b;margin-bottom:6px">반환값</div>
-      <pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#6ee7b7;overflow-x:auto;white-space:pre-wrap">${resultStr.replace(/</g,'&lt;')}</pre>
-    ` : (!logs.length ? '<div style="color:#4ade80;font-size:13px">✅ 실행 완료</div>' : '')}
-  `;
+  const logsHtml = logs.length
+    ? '<div style="font-size:11px;color:#64748b;margin-bottom:6px">콘솔 출력</div>' +
+      '<pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#94a3b8;overflow-x:auto;margin-bottom:10px;white-space:pre-wrap">' +
+      logs.map(l=>l.replace(/</g,'&lt;')).join('\n') + '</pre>'
+    : '';
+  const resultHtml = resultStr
+    ? '<div style="font-size:11px;color:#64748b;margin-bottom:6px">반환값</div>' +
+      '<pre style="background:#1e293b;border-radius:7px;padding:10px 12px;font-size:12px;color:#6ee7b7;overflow-x:auto;white-space:pre-wrap">' +
+      resultStr.replace(/</g,'&lt;') + '</pre>'
+    : (!logs.length ? '<div style="color:#4ade80;font-size:13px">✅ 실행 완료</div>' : '');
+  popup.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+    '<div style="color:#818cf8;font-weight:700;font-size:13px">⚡ ' + fileName + '</div>' +
+    '<button onclick="document.getElementById(\'exec-result-popup\')?.remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:17px">✕</button>' +
+    '</div>' + logsHtml + resultHtml;
   document.body.appendChild(popup);
   setTimeout(()=>{
     const close=(e)=>{if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',close);}};
@@ -883,7 +878,6 @@ function showExecResult(fileName, logs, result) {
   },50);
 }
 
-async function downloadObsidianFile(filePath, name) {
 async function downloadObsidianFile(filePath, name) {
   try {
     const r = await fetch(
@@ -1230,9 +1224,9 @@ function renderIntroStats() {
         <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;letter-spacing:.5px">최근 접속 기록</div>
         <div style="border:1px solid #e8edf2;border-radius:8px;overflow:hidden">
           ${visits.length
-            ? `<table style="width:100%;border-collapse:collapse">
-                <thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">#</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">IP</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">시간</th></tr></thead>
-                <tbody>${visitRows}</tbody></table>`
+            ? '<table style="width:100%;border-collapse:collapse">'
+              + '<thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">#</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">IP</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">시간</th></tr></thead>'
+              + '<tbody>' + visitRows + '</tbody></table>'
             : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">기록 없음</div>'}
         </div>
       </div>
@@ -1240,9 +1234,9 @@ function renderIntroStats() {
         <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;letter-spacing:.5px">다운로드 통계</div>
         <div style="border:1px solid #e8edf2;border-radius:8px;overflow:hidden">
           ${dl.length
-            ? `<table style="width:100%;border-collapse:collapse">
-                <thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">파일명</th><th style="padding:8px 12px;text-align:center;font-size:11px;color:#94a3b8">횟수</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">마지막</th></tr></thead>
-                <tbody>${dlRows}</tbody></table>`
+            ? '<table style="width:100%;border-collapse:collapse">'
+              + '<thead><tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8">파일명</th><th style="padding:8px 12px;text-align:center;font-size:11px;color:#94a3b8">횟수</th><th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8">마지막</th></tr></thead>'
+              + '<tbody>' + dlRows + '</tbody></table>'
             : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">기록 없음</div>'}
         </div>
       </div>
@@ -2107,26 +2101,45 @@ async function showDeleteDialog() {
 
   // ── 구글드라이브 트리 (OAuth 2SV 설정 후 활성화 예정) ──
   async function renderDriveTree() {
-    treeWrap.innerHTML = `
-      <div style="padding:32px 20px;text-align:center;">
-        <div style="font-size:36px;margin-bottom:14px;">🔐</div>
-        <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;">Google 인증 설정 필요</div>
-        <div style="font-size:12px;color:#64748b;line-height:1.7;margin-bottom:20px;">
-          Google Cloud Console에서 2단계 인증(2SV) 설정 후<br>
-          OAuth 클라이언트에 <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#e11d48;">https://snghee.github.io</code> 를<br>
-          <b>승인된 JavaScript 원본</b>으로 추가하면 활성화됩니다.
-        </div>
-        <a href="https://myaccount.google.com/security" target="_blank"
-          style="display:inline-block;padding:8px 18px;background:#4285f4;color:white;border-radius:7px;font-size:13px;font-weight:600;text-decoration:none;">
-          🔑 Google 보안 설정 열기
-        </a>
-        <div style="margin-top:10px;">
-          <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
-            style="font-size:11px;color:#94a3b8;text-decoration:underline;">
-            Cloud Console 인증 설정
-          </a>
-        </div>
-      </div>`;
+    treeWrap.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:32px 20px;text-align:center;';
+
+    const icon = document.createElement('div');
+    icon.style.cssText = 'font-size:36px;margin-bottom:14px;';
+    icon.textContent = '🔐';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;';
+    title.textContent = 'Google 인증 설정 필요';
+
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:12px;color:#64748b;line-height:1.7;margin-bottom:20px;';
+    desc.innerHTML = 'Google Cloud Console에서 2단계 인증(2SV) 설정 후<br>'
+      + 'OAuth 클라이언트에 <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#e11d48;">https://snghee.github.io</code> 를<br>'
+      + '<b>승인된 JavaScript 원본</b>으로 추가하면 활성화됩니다.';
+
+    const btn = document.createElement('a');
+    btn.href = 'https://myaccount.google.com/security';
+    btn.target = '_blank';
+    btn.style.cssText = 'display:inline-block;padding:8px 18px;background:#4285f4;color:white;border-radius:7px;font-size:13px;font-weight:600;text-decoration:none;';
+    btn.textContent = '🔑 Google 보안 설정 열기';
+
+    const link = document.createElement('div');
+    link.style.cssText = 'margin-top:10px;';
+    const a2 = document.createElement('a');
+    a2.href = 'https://console.cloud.google.com/apis/credentials';
+    a2.target = '_blank';
+    a2.style.cssText = 'font-size:11px;color:#94a3b8;text-decoration:underline;';
+    a2.textContent = 'Cloud Console 인증 설정';
+    link.appendChild(a2);
+
+    wrap.appendChild(icon);
+    wrap.appendChild(title);
+    wrap.appendChild(desc);
+    wrap.appendChild(btn);
+    wrap.appendChild(link);
+    treeWrap.appendChild(wrap);
   }
 
   // ── 삭제 실행 ──
