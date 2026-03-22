@@ -1421,6 +1421,7 @@ function drawGalaxy(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.2,8]).on('zoom',e=>g.attr('transform',e.transform));
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   // 배경 별 (줌과 함께 움직임)
   g.append('rect').attr('x',-W).attr('y',-H).attr('width',W*3).attr('height',H*3).attr('fill','url(#gx-bg)').attr('pointer-events','none');
@@ -1547,6 +1548,7 @@ function drawForce(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.15,10]).on('zoom',e=>g.attr('transform',e.transform));
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   // 클러스터 영역 원
   const areaCircles={};
@@ -1677,6 +1679,7 @@ function drawBubble(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.2,10]).on('zoom',e=>{bubbleG.attr('transform',e.transform);g.attr('transform',e.transform);});
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
   const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
