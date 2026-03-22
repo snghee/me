@@ -1,3 +1,4 @@
+<!-- v260322001 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -301,6 +302,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 스타일 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -436,6 +438,7 @@ function showDashboard() {
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 스타일 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -1421,7 +1424,6 @@ function drawGalaxy(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.2,8]).on('zoom',e=>g.attr('transform',e.transform));
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
-  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   // 배경 별 (줌과 함께 움직임)
   g.append('rect').attr('x',-W).attr('y',-H).attr('width',W*3).attr('height',H*3).attr('fill','url(#gx-bg)').attr('pointer-events','none');
@@ -1493,7 +1495,6 @@ function drawGalaxy(svgEl, nodes, links) {
     _attachNodeEvents(ng,n,nodeR,nodeColor,lc,links,linkData,linkEls,nodeLayer,tooltip,nodeById);
   });
   svg.on('click',()=>{tooltip.style.display='none';});
-  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1548,7 +1549,6 @@ function drawForce(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.15,10]).on('zoom',e=>g.attr('transform',e.transform));
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
-  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   // 클러스터 영역 원
   const areaCircles={};
@@ -1588,7 +1588,6 @@ function drawForce(svgEl, nodes, links) {
     });
   });
   svg.on('click',()=>{tooltip.style.display='none';});
-  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1679,7 +1678,6 @@ function drawBubble(svgEl, nodes, links) {
   const g=svg.append('g');
   const zoom=d3.zoom().scaleExtent([0.2,10]).on('zoom',e=>{bubbleG.attr('transform',e.transform);g.attr('transform',e.transform);});
   svg.call(zoom); graphZoom=zoom; graphSvg=svg;
-  svg.on("dblclick.zoom", null); // 더블클릭 확대 비활성화
 
   const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
   const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
@@ -1702,7 +1700,6 @@ function drawBubble(svgEl, nodes, links) {
     let ni=0;nodeLayer.selectAll('g').each(function(){if(nodes[ni])d3.select(this).attr('transform',`translate(${nodes[ni].x||0},${nodes[ni].y||0})`);ni++;});
   });
   svg.on('click',()=>{tooltip.style.display='none';});
-  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1854,7 +1851,6 @@ function drawGlobe(svgEl, nodes, links) {
 
   graphSvg=svg; graphZoom=null;
   svg.on('click',()=>{tooltip.style.display='none';});
-  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ── 공통 노드 이벤트 ── */
