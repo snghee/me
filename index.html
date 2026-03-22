@@ -301,13 +301,11 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 모양 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
-    </div>
-  </div>
-</div>
 </div><!-- content-area -->
 </div><!-- main-layout -->
 
@@ -439,6 +437,7 @@ function showDashboard() {
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 모양 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -1353,342 +1352,543 @@ async function initObsidianGraph() {
   }
 }
 
+/* ── 그래프 스타일 관리 ── */
+let _graphStyle = 0; // 0=은하수 1=포스 2=버블 3=지구본
+const _graphStyles = ['🌌','🕸','🔵','🌍'];
+const _graphLabels = ['은하수','포스그래프','버블차트','3D지구본'];
+let _graphNodes = null, _graphLinks = null;
+
+function cycleGraphStyle() {
+  _graphStyle = (_graphStyle + 1) % 4;
+  const btn = document.getElementById('graph-style-btn');
+  if (btn) {
+    btn.textContent = _graphStyles[_graphStyle];
+    btn.title = _graphLabels[_graphStyle] + '로 변경';
+  }
+  const svgEl = document.getElementById('obs-graph');
+  if (svgEl && _graphNodes) drawGraph(svgEl, _graphNodes, _graphLinks);
+}
+
 function drawGraph(svgEl, nodes, links) {
-  /* ── 초기화 ── */
-  if (window._globeRAF) { cancelAnimationFrame(window._globeRAF); window._globeRAF = null; }
-  if (window._kaTimer)  { clearTimeout(window._kaTimer); window._kaTimer = null; }
-  graphPaused = false; graphSim = null;
-  const pauseBtn = document.getElementById('pause-btn');
-  if (pauseBtn) { pauseBtn.textContent = '⏸ 멈춤'; pauseBtn.classList.remove('paused'); }
+  // 노드/링크 저장 (스타일 전환용)
+  _graphNodes = nodes; _graphLinks = links;
 
-  const wrap = svgEl.parentElement;
-  const W = wrap.offsetWidth  || window.innerWidth  || 900;
-  const H = wrap.offsetHeight || window.innerHeight || 600;
-  const CX = W/2, CY = H/2;
-  const R  = Math.min(W, H) * 0.38;
-  const tooltip = document.getElementById('graph-tooltip');
+  if (_graphStyle === 0) drawGalaxy(svgEl, nodes, links);
+  else if (_graphStyle === 1) drawForce(svgEl, nodes, links);
+  else if (_graphStyle === 2) drawBubble(svgEl, nodes, links);
+  else drawGlobe(svgEl, nodes, links);
+}
 
-  /* ── 색상 ── */
-  const PALETTE = ['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7','#fdba74','#c4b5fd'];
-  const TAG_CLR = '#4ade80';
-  const fileFolders = [...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
-  const folderColor = d3.scaleOrdinal(PALETTE).domain(fileFolders);
-  const nodeColor   = d => d.isTag ? TAG_CLR : folderColor(d.folder);
+/* ════════════════════════════════
+   🌌 은하수 스타일
+════════════════════════════════ */
+function drawGalaxy(svgEl, nodes, links) {
+  if (window._globeRAF) { cancelAnimationFrame(window._globeRAF); window._globeRAF=null; }
+  if (window._kaTimer)  { clearTimeout(window._kaTimer); window._kaTimer=null; }
+  graphPaused=false; graphSim=null;
 
-  /* ── SVG ── */
-  const svg = d3.select(svgEl).attr('width',W).attr('height',H);
+  const wrap=svgEl.parentElement;
+  const W=wrap.offsetWidth||900, H=wrap.offsetHeight||600;
+  const tooltip=document.getElementById('graph-tooltip');
+
+  const PALETTE=['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7','#fdba74','#c4b5fd'];
+  const TAG_CLR='#4ade80';
+  const fileFolders=[...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
+  const folderColor=d3.scaleOrdinal(PALETTE).domain(fileFolders);
+  const nodeColor=d=>d.isTag?TAG_CLR:folderColor(d.folder);
+
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
   svg.selectAll('*').remove();
-  const defs = svg.append('defs');
+  const defs=svg.append('defs');
 
-  /* 배경 */
-  const bgGr = defs.append('radialGradient').attr('id','gb-bg').attr('cx','42%').attr('cy','38%');
-  bgGr.append('stop').attr('offset','0%').attr('stop-color','#090f22');
+  // 배경
+  const bgGr=defs.append('radialGradient').attr('id','gx-bg').attr('cx','50%').attr('cy','50%');
+  bgGr.append('stop').attr('offset','0%').attr('stop-color','#0a0f2e');
   bgGr.append('stop').attr('offset','100%').attr('stop-color','#020408');
-  svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#gb-bg)');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#gx-bg)');
 
-  /* 별 */
-  for (let i=0; i<250; i++) {
-    const sx = (Math.sin(i*127.1)*0.5+0.5)*W;
-    const sy = (Math.sin(i*311.7)*0.5+0.5)*H;
-    const sr = (Math.sin(i*57.3)*0.5+0.5)*1.3+0.15;
-    svg.append('circle').attr('cx',sx).attr('cy',sy).attr('r',sr)
-      .attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.55+0.07);
+  // 별
+  for(let i=0;i<220;i++){
+    svg.append('circle')
+      .attr('cx',(Math.sin(i*127.1)*0.5+0.5)*W).attr('cy',(Math.sin(i*311.7)*0.5+0.5)*H)
+      .attr('r',(Math.sin(i*57.3)*0.5+0.5)*1.2+0.15)
+      .attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.5+0.07);
   }
 
-  /* 지구 그라디언트 */
-  const globeGr = defs.append('radialGradient').attr('id','gb-globe').attr('cx','35%').attr('cy','32%');
-  globeGr.append('stop').attr('offset','0%').attr('stop-color','#12305a');
-  globeGr.append('stop').attr('offset','60%').attr('stop-color','#0a1e3d');
-  globeGr.append('stop').attr('offset','100%').attr('stop-color','#04101f');
+  // 은하 중심 글로우
+  const cGr=defs.append('radialGradient').attr('id','gx-core').attr('cx','50%').attr('cy','50%');
+  cGr.append('stop').attr('offset','0%').attr('stop-color','rgba(160,120,255,0.3)');
+  cGr.append('stop').attr('offset','100%').attr('stop-color','rgba(0,0,0,0)');
+  svg.append('ellipse').attr('cx',W/2).attr('cy',H/2).attr('rx',W*0.35).attr('ry',H*0.22).attr('fill','url(#gx-core)');
 
-  /* 지구 하이라이트 */
-  const hlGr = defs.append('radialGradient').attr('id','gb-hl').attr('cx','32%').attr('cy','28%');
-  hlGr.append('stop').attr('offset','0%').attr('stop-color','rgba(150,200,255,0.22)');
-  hlGr.append('stop').attr('offset','100%').attr('stop-color','rgba(0,0,0,0)');
-
-  /* 글로우 필터 */
-  const mkGlow = (id, blur) => {
-    const f = defs.append('filter').attr('id',id)
-      .attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
+  const mkGlow=(id,blur)=>{
+    const f=defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');
-    const m = f.append('feMerge');
-    m.append('feMergeNode').attr('in','blur');
-    m.append('feMergeNode').attr('in','SourceGraphic');
+    const m=f.append('feMerge'); m.append('feMergeNode').attr('in','blur'); m.append('feMergeNode').attr('in','SourceGraphic');
   };
-  mkGlow('nf',2.5); mkGlow('nt',5); mkGlow('halo',12);
+  mkGlow('gx-nf',2.5); mkGlow('gx-nt',4.5); mkGlow('gx-arm',8);
 
-  /* 지구 외부 글로우 */
-  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+22)
-    .attr('fill','none').attr('stroke','rgba(80,140,255,0.06)').attr('stroke-width',28)
-    .attr('filter','url(#halo)');
-  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+6)
-    .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',7);
+  const CX=W/2, CY=H/2, MAX_R=Math.min(W,H)*0.44;
+  const numArms=Math.max(fileFolders.length,1);
 
-  /* 지구 본체 */
-  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R)
-    .attr('fill','url(#gb-globe)').attr('stroke','rgba(80,150,255,0.3)').attr('stroke-width',1.5);
-
-  /* 하이라이트 */
-  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R)
-    .attr('fill','url(#gb-hl)').attr('pointer-events','none');
-
-  /* 클립 패스 */
-  defs.append('clipPath').attr('id','globe-clip')
-    .append('circle').attr('cx',CX).attr('cy',CY).attr('r',R-1);
-
-  /* ── 구면 좌표 배정 ── */
-  /* 폴더별로 위도 띠 할당, 각 띠 위에 노드를 경도 방향으로 균등 배치 */
-  const bandStep = Math.PI / (fileFolders.length + 1);
-  const folderBand = {};
-  fileFolders.forEach((fol,i) => { folderBand[fol] = -Math.PI/2 + bandStep*(i+1); });
-
-  const folderCnt = {}, folderIdx = {};
-  nodes.filter(n=>!n.isTag).forEach(n => { folderCnt[n.folder]=(folderCnt[n.folder]||0)+1; });
-  nodes.forEach(n => {
-    if (n.isTag) return;
-    folderIdx[n.folder] = folderIdx[n.folder]||0;
-    const total = folderCnt[n.folder];
-    const idx   = folderIdx[n.folder]++;
-    n._lat = folderBand[n.folder];
-    n._lng = (2*Math.PI*idx)/total - Math.PI + 0.05;
+  // 나선팔 배치
+  const folderCnt={}, folderIdx2={};
+  nodes.filter(n=>!n.isTag).forEach(n=>{folderCnt[n.folder]=(folderCnt[n.folder]||0)+1;});
+  nodes.forEach(n=>{
+    if(n.isTag)return;
+    const ai=fileFolders.indexOf(n.folder);
+    folderIdx2[n.folder]=folderIdx2[n.folder]||0;
+    const idx=folderIdx2[n.folder]++, total=folderCnt[n.folder];
+    const armOffset=(2*Math.PI*ai)/numArms;
+    const t=0.35+(idx/Math.max(total-1,1))*0.6;
+    const r=MAX_R*t, theta=armOffset+t*2.8+(idx%3-1)*0.18;
+    const spread=MAX_R*0.045*(1+t), perpAngle=theta+Math.PI/2;
+    const scatter=(((idx*7+ai*13)%17)/17-0.5)*spread;
+    n._px=CX+r*Math.cos(theta)+scatter*Math.cos(perpAngle);
+    n._py=CY+r*Math.sin(theta)*0.55+scatter*Math.sin(perpAngle)*0.55;
   });
-  /* 태그: 북극 근처 */
-  const tagNodes = nodes.filter(n=>n.isTag);
-  tagNodes.forEach((n,i) => {
-    n._lat = Math.PI/2 - 0.28;
-    n._lng = (2*Math.PI*i)/Math.max(tagNodes.length,1) - Math.PI;
+  const tagNodes=nodes.filter(n=>n.isTag);
+  tagNodes.forEach((n,i)=>{
+    const angle=(2*Math.PI*i)/Math.max(tagNodes.length,1)-Math.PI/2;
+    n._px=CX+MAX_R*0.18*Math.cos(angle); n._py=CY+MAX_R*0.18*Math.sin(angle)*0.55;
   });
 
-  /* ── 링크 수 → 반지름 ── */
-  const lc = {};
-  nodes.forEach(n=>{lc[n.id]=0;});
+  // 나선팔 배경 선
+  const armG=svg.append('g');
+  fileFolders.forEach((fol,ai)=>{
+    const pts=[];
+    for(let t=0;t<=1;t+=0.02){
+      const armOffset=(2*Math.PI*ai)/numArms;
+      const theta=armOffset+(0.3+t*0.65)*2.8;
+      const r=MAX_R*(0.3+t*0.65);
+      pts.push([CX+r*Math.cos(theta),CY+r*Math.sin(theta)*0.55]);
+    }
+    const lineGen=d3.line().x(d=>d[0]).y(d=>d[1]).curve(d3.curveCatmullRom);
+    svg.append('path').attr('d',lineGen(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',18).attr('stroke-opacity',0.12).attr('filter','url(#gx-arm)');
+    svg.append('path').attr('d',lineGen(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',1.5).attr('stroke-opacity',0.35);
+  });
+
+  const lc={}; nodes.forEach(n=>{lc[n.id]=0;});
   links.forEach(l=>{
     const s=typeof l.source==='object'?l.source.id:l.source;
     const t=typeof l.target==='object'?l.target.id:l.target;
     if(lc[s]!=null)lc[s]++; if(lc[t]!=null)lc[t]++;
   });
-  const nodeR = d => d.isTag
-    ? Math.max(6, Math.min(6+(lc[d.id]||0)*2.8, 22))   // 태그: 연결 수에 훨씬 비례
-    : Math.max(4, Math.min(4+(lc[d.id]||0)*1.3, 16));
+  const nodeR=d=>d.isTag?Math.max(5,Math.min(5+(lc[d.id]||0)*2.5,20)):Math.max(4,Math.min(4+(lc[d.id]||0)*1.2,15));
 
-  /* ── 회전 상태 ── */
-  let rotY = 0, rotX = 0.28;
-  let isDragging = false, dragX0 = 0, dragY0 = 0, rotY0 = 0, rotX0 = 0;
+  const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
+  const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
 
-  /* ── 3D → 2D 투영 ── */
-  function project(lat, lng) {
-    const cosLat = Math.cos(lat);
-    const sinLat = Math.sin(lat);
-    const cosLng = Math.cos(lng + rotY);
-    const sinLng = Math.sin(lng + rotY);
-    const cosRX  = Math.cos(rotX), sinRX = Math.sin(rotX);
-    const x3 = cosLat * sinLng;
-    const y3 = sinLat * cosRX - cosLat * cosLng * sinRX;
-    const z3 = sinLat * sinRX + cosLat * cosLng * cosRX;
-    return { x: CX + R*x3, y: CY - R*y3, z: z3 };
-  }
+  const g=svg.append('g');
+  const zoom=d3.zoom().scaleExtent([0.2,8]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom); graphZoom=zoom; graphSvg=svg;
 
-  /* ── 격자선 레이어 (클립) ── */
-  const gridG = svg.append('g').attr('clip-path','url(#globe-clip)');
+  const linkLayer=g.append('g');
+  const linkEls=linkData.map(l=>linkLayer.append('line').attr('stroke',l.type==='tag'?'rgba(74,222,128,0.4)':'rgba(160,190,255,0.12)').attr('stroke-width',l.type==='tag'?1:0.6).attr('stroke-dasharray',l.type==='tag'?'4,3':'none').attr('x1',l.src._px).attr('y1',l.src._py).attr('x2',l.tgt._px).attr('y2',l.tgt._py));
 
-  /* ── 링크/노드 레이어 (클립) ── */
-  const contentG = svg.append('g').attr('clip-path','url(#globe-clip)');
-  const linkLayer = contentG.append('g');
-  const nodeLayer = contentG.append('g');
+  const nodeLayer=g.append('g');
+  nodes.forEach(n=>{
+    const ng=nodeLayer.append('g').attr('transform',`translate(${n._px},${n._py})`).style('cursor',n.isTag?'default':'pointer');
+    ng.append('circle').attr('class','nhalo').attr('r',nodeR(n)+(n.isTag?7:4)).attr('fill','none').attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.8).attr('stroke-opacity',n.isTag?0.45:0.2);
+    ng.append('circle').attr('class','nbody').datum(n).attr('r',nodeR(n)).attr('fill',nodeColor(n)).attr('fill-opacity',n.isTag?0.95:0.88).attr('filter',`url(#${n.isTag?'gx-nt':'gx-nf'})`);
+    if(n.isTag){const r2=nodeR(n)*0.5;ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`).attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');}
+    ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em').attr('font-size',n.isTag?'9.5px':'10px').attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.85)').attr('pointer-events','none').text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
+    _attachNodeEvents(ng, n, nodeR, nodeColor, lc, links, linkData, linkEls, nodeLayer, tooltip, nodeById);
+  });
+  svg.on('click',()=>{tooltip.style.display='none';});
+}
 
-  /* ── 링크 데이터 ── */
-  const nodeById = {};
-  nodes.forEach(n=>{nodeById[n.id]=n;});
-  const linkData = links.map(l=>({
-    src: nodeById[typeof l.source==='object'?l.source.id:l.source],
-    tgt: nodeById[typeof l.target==='object'?l.target.id:l.target],
-    type: l.type
-  })).filter(l=>l.src&&l.tgt);
+/* ════════════════════════════════
+   🕸 포스 그래프
+════════════════════════════════ */
+function drawForce(svgEl, nodes, links) {
+  if(window._globeRAF){cancelAnimationFrame(window._globeRAF);window._globeRAF=null;}
+  if(window._kaTimer){clearTimeout(window._kaTimer);window._kaTimer=null;}
+  graphPaused=false;
 
-  const linkEls = linkData.map(l=>
-    linkLayer.append('line')
-      .attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)')
-      .attr('stroke-width',l.type==='tag'?1.2:0.7)
-      .attr('stroke-dasharray',l.type==='tag'?'4,3':'none')
-      .attr('stroke-linecap','round')
-  );
+  const wrap=svgEl.parentElement;
+  const W=wrap.offsetWidth||900, H=wrap.offsetHeight||600;
+  const tooltip=document.getElementById('graph-tooltip');
 
-  /* ── 노드 DOM ── */
-  const nodeGroups = [];
-  nodes.forEach(n => {
-    const ng = nodeLayer.append('g').style('cursor',n.isTag?'default':'pointer');
+  const PALETTE=['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7','#fdba74','#c4b5fd'];
+  const TAG_CLR='#4ade80';
+  const fileFolders=[...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
+  const folderColor=d3.scaleOrdinal(PALETTE).domain(fileFolders);
+  const nodeColor=d=>d.isTag?TAG_CLR:folderColor(d.folder);
 
-    ng.append('circle').attr('class','nhalo')
-      .attr('r',nodeR(n)+(n.isTag?7:5)).attr('fill','none')
-      .attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.9)
-      .attr('stroke-opacity',n.isTag?0.5:0.22);
-    ng.append('circle').attr('class','nbody').datum(n)
-      .attr('r',nodeR(n)).attr('fill',nodeColor(n))
-      .attr('fill-opacity',n.isTag?0.95:0.88)
-      .attr('filter',`url(#${n.isTag?'nt':'nf'})`);
-    if(n.isTag){
-      const r2=nodeR(n)*0.5;
-      ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`)
-        .attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');
-    }
-    ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em')
-      .attr('font-size',n.isTag?'9.5px':'10px')
-      .attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.88)')
-      .attr('pointer-events','none')
-      .text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+  const defs=svg.append('defs');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#07111f');
+  const mkGlow=(id,blur)=>{const f=defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');const m=f.append('feMerge');m.append('feMergeNode').attr('in','blur');m.append('feMergeNode').attr('in','SourceGraphic');};
+  mkGlow('ff-nf',2.5);mkGlow('ff-nt',4.5);mkGlow('ff-af',18);
 
-    ng.on('mouseover',(e)=>{
-        tooltip.style.display='block';
-        if (n.isTag) {
-          /* 태그 노드: 연결 파일 수 표시 */
-          tooltip.innerHTML = `<span style="color:#4ade80;font-weight:700">#${n.name}</span>  <span style="opacity:.7">${lc[n.id]||0}개 노트 연결</span>`;
-        } else {
-          /* 파일 노드: 태그 뱃지 말풍선 */
-          const tagHtml = n.tags && n.tags.length
-            ? n.tags.map(t=>`<span style="display:inline-block;padding:1px 7px;margin:1px 2px;background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.45);border-radius:10px;color:#4ade80;font-size:10px">#${t}</span>`).join('')
-            : '<span style="opacity:.45;font-size:10px">태그 없음</span>';
-          tooltip.innerHTML = `<div style="font-weight:600;margin-bottom:5px;color:rgba(220,235,255,0.95)">${n.name}</div><div>${tagHtml}</div>`;
-        }
-        const conn=new Set([n.id]);
-        links.forEach(l=>{const s=l.source?.id||l.source,t2=l.target?.id||l.target;if(s===n.id)conn.add(t2);if(t2===n.id)conn.add(s);});
-        linkEls.forEach((line,i)=>{
-          const l=linkData[i],hit=l.src.id===n.id||l.tgt.id===n.id;
-          line.attr('stroke',hit?(l.type==='tag'?'rgba(74,222,128,0.95)':'rgba(200,225,255,0.9)'):(l.type==='tag'?'rgba(74,222,128,0.05)':'rgba(160,200,255,0.03)'))
-              .attr('stroke-width',hit?2.5:0.25);
-        });
-        nodeLayer.selectAll('circle.nbody').attr('fill-opacity',0.07);
-        conn.forEach(id=>{nodeLayer.selectAll('circle.nbody').filter(function(d2){return d2&&d2.id===id;}).attr('fill-opacity',0.95);});
-        ng.select('circle.nbody').attr('fill-opacity',1);
-        ng.select('circle.nhalo').attr('stroke-opacity',0.9).attr('r',nodeR(n)+11);
-      })
-      .on('mousemove',e=>{
-        tooltip.style.left=(e.clientX+16)+'px';
-        tooltip.style.top=(e.clientY-38)+'px';
-      })
-      .on('mouseout',()=>{
-        tooltip.style.display='none';
-        linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)').attr('stroke-width',l.type==='tag'?1.2:0.7);});
-        nodeLayer.selectAll('circle.nbody').attr('fill-opacity',function(d2){return d2?.isTag?0.95:0.88;});
-        ng.select('circle.nhalo').attr('stroke-opacity',n.isTag?0.5:0.22).attr('r',nodeR(n)+(n.isTag?7:5));
-      })
-      .on('click',(e)=>{
-        e.stopPropagation();
-        if (!n.isTag) {
-          loadObsidianFileByPath(n.path,n.name,n.folder);
-        } else {
-          /* 태그 클릭 → 연결 파일 목록 팝업 */
-          showTagPopup(n, e, nodeById, links, wrap);
-        }
-      });
+  const lc={}; nodes.forEach(n=>{lc[n.id]=0;});
+  links.forEach(l=>{const s=typeof l.source==='object'?l.source.id:l.source,t=typeof l.target==='object'?l.target.id:l.target;if(lc[s]!=null)lc[s]++;if(lc[t]!=null)lc[t]++;});
+  const nodeR=d=>d.isTag?Math.max(5,Math.min(5+(lc[d.id]||0)*2.5,20)):Math.max(5,Math.min(5+(lc[d.id]||0)*1.3,18));
 
-    nodeGroups.push({ n, ng });
+  const clusterR=Math.min(W,H)*0.30;
+  const clusterCenter={};
+  fileFolders.forEach((fol,i)=>{
+    const angle=(2*Math.PI*i)/fileFolders.length-Math.PI/2;
+    clusterCenter[fol]={x:W/2+clusterR*Math.cos(angle),y:H/2+clusterR*Math.sin(angle)};
   });
 
-  /* ── 렌더 함수 ── */
-  function render() {
-    /* 격자선 */
-    gridG.selectAll('*').remove();
-    /* 위도선 */
-    for (let lat=-60; lat<=60; lat+=30) {
-      const latR = lat*Math.PI/180;
-      const pts = [];
-      for (let lng=-180; lng<=180; lng+=5) {
-        const p = project(latR, lng*Math.PI/180);
-        if (p.z > -0.1) pts.push([p.x, p.y]);
-        else if (pts.length) {
-          if (pts.length > 1) {
-            gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
-              .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);
-          }
-          pts.length = 0;
-        }
-      }
-      if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
-        .attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);
-    }
-    /* 경도선 */
-    for (let lng=-180; lng<180; lng+=30) {
-      const lngR = lng*Math.PI/180;
-      const pts = [];
-      for (let lat=-85; lat<=85; lat+=4) {
-        const p = project(lat*Math.PI/180, lngR);
-        if (p.z > -0.1) pts.push([p.x, p.y]);
-        else if (pts.length) {
-          if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
-            .attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);
-          pts.length = 0;
-        }
-      }
-      if (pts.length > 1) gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' '))
-        .attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);
-    }
-    /* 적도 강조 */
-    const eqPts = [];
-    for (let lng=-180; lng<=180; lng+=3) {
-      const p=project(0, lng*Math.PI/180);
-      if(p.z>-0.05) eqPts.push([p.x,p.y]);
-    }
-    if(eqPts.length>1) gridG.append('polyline').attr('points',eqPts.map(p=>p.join(',')).join(' '))
-      .attr('fill','none').attr('stroke','rgba(100,200,255,0.22)').attr('stroke-width',1);
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(l=>l.type==='tag'?55:45).strength(l=>l.type==='tag'?0.3:0.7))
+    .force('charge',d3.forceManyBody().strength(d=>d.isTag?-80:-160).distanceMax(300))
+    .force('center',d3.forceCenter(W/2,H/2).strength(0.015))
+    .force('collision',d3.forceCollide(d=>nodeR(d)+12).strength(0.85))
+    .force('cluster-x',d3.forceX(d=>d.isTag?W/2:(clusterCenter[d.folder]?.x??W/2)).strength(d=>d.isTag?0.03:0.22))
+    .force('cluster-y',d3.forceY(d=>d.isTag?H/2:(clusterCenter[d.folder]?.y??H/2)).strength(d=>d.isTag?0.03:0.22))
+    .alphaMin(0.002).alphaDecay(0.008).velocityDecay(0.38);
+  graphSim=sim;
 
-    /* 노드 위치 업데이트 */
-    nodeGroups.forEach(({n, ng}) => {
-      const p = project(n._lat, n._lng);
-      const visible = p.z > -0.05;
-      const op  = visible ? Math.max(0, Math.min(1, (p.z+0.1)*1.8)) : 0;
-      const sc  = visible ? 0.55 + p.z*0.5  : 0;
-      ng.attr('transform',`translate(${p.x},${p.y}) scale(${Math.max(0,sc)})`)
-        .attr('opacity', op)
-        .style('display', op<0.02?'none':null);
-      n._px=p.x; n._py=p.y; n._pz=p.z; n._vis=visible;
+  function keepAlive(){if(graphPaused)return;if(sim.alpha()<0.012)sim.alpha(0.05).restart();window._kaTimer=setTimeout(keepAlive,2500);}
+  keepAlive();
+
+  const g=svg.append('g');
+  const zoom=d3.zoom().scaleExtent([0.15,10]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+
+  // 클러스터 영역 원
+  const areaCircles={};
+  fileFolders.forEach(fol=>{
+    const ci=g.append('circle').attr('r',60).attr('fill',folderColor(fol)).attr('fill-opacity',0.04).attr('stroke',folderColor(fol)).attr('stroke-width',1.5).attr('stroke-opacity',0.2).attr('stroke-dasharray','6,4').attr('filter','url(#ff-af)');
+    areaCircles[fol]=ci;
+    areaCircles[fol+'_lbl']=g.append('text').attr('text-anchor','middle').attr('font-size','11px').attr('font-weight','700').attr('fill',folderColor(fol)).attr('fill-opacity',0.55).attr('pointer-events','none').text(fol);
+  });
+
+  const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
+  const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
+
+  const linkLayer=g.append('g');
+  const linkEls=linkData.map(l=>linkLayer.append('line').attr('stroke',l.type==='tag'?'rgba(74,222,128,0.4)':'rgba(160,195,255,0.14)').attr('stroke-width',l.type==='tag'?1:0.6).attr('stroke-dasharray',l.type==='tag'?'4,3':'none').attr('stroke-linecap','round'));
+
+  const nodeLayer=g.append('g');
+  nodes.forEach(n=>{
+    const ng=nodeLayer.append('g').style('cursor',n.isTag?'default':'pointer')
+      .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.25).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+    ng.append('circle').attr('class','nhalo').attr('r',nodeR(n)+(n.isTag?7:5)).attr('fill','none').attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.9).attr('stroke-opacity',n.isTag?0.45:0.2);
+    ng.append('circle').attr('class','nbody').datum(n).attr('r',nodeR(n)).attr('fill',nodeColor(n)).attr('fill-opacity',n.isTag?0.95:0.88).attr('filter',`url(#${n.isTag?'ff-nt':'ff-nf'})`);
+    if(n.isTag){const r2=nodeR(n)*0.5;ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`).attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');}
+    ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em').attr('font-size',n.isTag?'9.5px':'10px').attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.85)').attr('pointer-events','none').text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
+    _attachNodeEvents(ng,n,nodeR,nodeColor,lc,links,linkData,linkEls,nodeLayer,tooltip,nodeById);
+  });
+
+  sim.on('tick',()=>{
+    linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('x1',l.src.x).attr('y1',l.src.y).attr('x2',l.tgt.x).attr('y2',l.tgt.y);});
+    let ni=0; nodeLayer.selectAll('g').each(function(){if(nodes[ni])d3.select(this).attr('transform',`translate(${nodes[ni].x||0},${nodes[ni].y||0})`);ni++;});
+    fileFolders.forEach(fol=>{
+      const fn=nodes.filter(n=>!n.isTag&&n.folder===fol&&n.x&&n.y);
+      if(!fn.length)return;
+      const mx=d3.mean(fn,d=>d.x),my=d3.mean(fn,d=>d.y);
+      const r=Math.max(40,(d3.max(fn,d=>Math.hypot(d.x-mx,d.y-my))||0)+30);
+      areaCircles[fol].attr('cx',mx).attr('cy',my).attr('r',r);
+      areaCircles[fol+'_lbl']?.attr('x',mx).attr('y',my-r-8);
     });
+  });
+  svg.on('click',()=>{tooltip.style.display='none';});
+}
 
-    /* 링크 위치 업데이트 */
+/* ════════════════════════════════
+   🔵 버블 차트
+════════════════════════════════ */
+function drawBubble(svgEl, nodes, links) {
+  if(window._globeRAF){cancelAnimationFrame(window._globeRAF);window._globeRAF=null;}
+  if(window._kaTimer){clearTimeout(window._kaTimer);window._kaTimer=null;}
+  graphPaused=false;
+
+  const wrap=svgEl.parentElement;
+  const W=wrap.offsetWidth||900, H=wrap.offsetHeight||600;
+  const tooltip=document.getElementById('graph-tooltip');
+
+  const PALETTE=['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7','#fdba74','#c4b5fd'];
+  const TAG_CLR='#4ade80';
+  const fileFolders=[...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
+  const folderColor=d3.scaleOrdinal(PALETTE).domain(fileFolders);
+  const nodeColor=d=>d.isTag?TAG_CLR:folderColor(d.folder);
+
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+  const defs=svg.append('defs');
+  const bgGr=defs.append('radialGradient').attr('id','bb-bg').attr('cx','50%').attr('cy','50%');
+  bgGr.append('stop').attr('offset','0%').attr('stop-color','#0a1120');
+  bgGr.append('stop').attr('offset','100%').attr('stop-color','#04080f');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#bb-bg)');
+  const mkGlow=(id,blur)=>{const f=defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');const m=f.append('feMerge');m.append('feMergeNode').attr('in','blur');m.append('feMergeNode').attr('in','SourceGraphic');};
+  mkGlow('bb-nf',2.5);mkGlow('bb-nt',5);mkGlow('bb-bf',22);
+
+  const lc={}; nodes.forEach(n=>{lc[n.id]=0;});
+  links.forEach(l=>{const s=typeof l.source==='object'?l.source.id:l.source,t=typeof l.target==='object'?l.target.id:l.target;if(lc[s]!=null)lc[s]++;if(lc[t]!=null)lc[t]++;});
+  const nodeR=d=>d.isTag?Math.max(5,Math.min(5+(lc[d.id]||0)*2.5,20)):Math.max(5,Math.min(5+(lc[d.id]||0)*1.3,18));
+
+  const folderNodeCnt={};
+  fileFolders.forEach(f=>{folderNodeCnt[f]=nodes.filter(n=>!n.isTag&&n.folder===f).length;});
+
+  // D3 pack
+  const packRoot=d3.hierarchy({id:'root',children:fileFolders.map(fol=>({id:fol,value:folderNodeCnt[fol]||1}))}).sum(d=>d.value||0);
+  d3.pack().size([W*0.9,H*0.88]).padding(18)(packRoot);
+  const bubblePos={};
+  (packRoot.children||[]).forEach(c=>{bubblePos[c.data.id]={x:c.x+W*0.05,y:c.y+H*0.06,r:c.r};});
+
+  // 버블 그리기
+  const bubbleG=svg.append('g');
+  fileFolders.forEach(fol=>{
+    const bp=bubblePos[fol]; if(!bp)return;
+    const ci=folderColor(fol);
+    const gid='bb-gr-'+fol.replace(/[^a-z0-9]/gi,'_');
+    const gr=defs.append('radialGradient').attr('id',gid).attr('cx','38%').attr('cy','35%');
+    gr.append('stop').attr('offset','0%').attr('stop-color',ci).attr('stop-opacity','0.16');
+    gr.append('stop').attr('offset','100%').attr('stop-color',ci).attr('stop-opacity','0.04');
+    bubbleG.append('circle').attr('cx',bp.x).attr('cy',bp.y).attr('r',bp.r+10).attr('fill','none').attr('stroke',ci).attr('stroke-width',1).attr('stroke-opacity',0.15).attr('filter','url(#bb-bf)');
+    bubbleG.append('circle').attr('cx',bp.x).attr('cy',bp.y).attr('r',bp.r).attr('fill',`url(#${gid})`).attr('stroke',ci).attr('stroke-width',1.2).attr('stroke-opacity',0.35);
+    bubbleG.append('text').attr('x',bp.x).attr('y',bp.y-bp.r+18).attr('text-anchor','middle').attr('font-size','12px').attr('font-weight','700').attr('fill',ci).attr('fill-opacity',0.75).attr('pointer-events','none').text(fol.length>16?fol.slice(0,16)+'…':fol);
+    bubbleG.append('text').attr('x',bp.x).attr('y',bp.y+bp.r-10).attr('text-anchor','middle').attr('font-size','10px').attr('fill',ci).attr('fill-opacity',0.4).attr('pointer-events','none').text(folderNodeCnt[fol]+'개');
+  });
+
+  // 노드 배치
+  const folderI2={};
+  nodes.forEach(n=>{
+    if(n.isTag){const ti=nodes.filter(x=>x.isTag).indexOf(n);const tagR=Math.min(50,nodes.filter(x=>x.isTag).length*8);const angle=(2*Math.PI*ti)/Math.max(nodes.filter(x=>x.isTag).length,1)-Math.PI/2;n._px=W/2+tagR*Math.cos(angle);n._py=H/2+tagR*Math.sin(angle);return;}
+    const bp=bubblePos[n.folder]; if(!bp){n._px=W/2;n._py=H/2;return;}
+    const total=folderNodeCnt[n.folder];
+    folderI2[n.folder]=folderI2[n.folder]||0;
+    const idx=folderI2[n.folder]++;
+    if(total===1){n._px=bp.x;n._py=bp.y;return;}
+    const rings=Math.ceil(Math.sqrt(total/Math.PI));
+    let placed=0,found=false;
+    for(let ring=1;ring<=rings+2&&!found;ring++){
+      const perRing=Math.round(2*Math.PI*ring*2.2);
+      for(let j=0;j<perRing&&placed<total&&!found;j++,placed++){
+        if(placed===idx){const angle=(2*Math.PI*j)/perRing,rr=(ring/(rings+1))*(bp.r*0.78);n._px=bp.x+rr*Math.cos(angle);n._py=bp.y+rr*Math.sin(angle);found=true;}
+      }
+    }
+    if(!found){n._px=bp.x;n._py=bp.y;}
+  });
+
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(l=>l.type==='tag'?60:30).strength(l=>l.type==='tag'?0.2:0.5))
+    .force('charge',d3.forceManyBody().strength(d=>d.isTag?-50:-90).distanceMax(200))
+    .force('collision',d3.forceCollide(d=>nodeR(d)+8).strength(0.9))
+    .force('bubble-x',d3.forceX(d=>d.isTag?W/2:(bubblePos[d.folder]?.x??W/2)).strength(d=>d.isTag?0.05:0.35))
+    .force('bubble-y',d3.forceY(d=>d.isTag?H/2:(bubblePos[d.folder]?.y??H/2)).strength(d=>d.isTag?0.05:0.35))
+    .alphaMin(0.002).alphaDecay(0.012).velocityDecay(0.45);
+  graphSim=sim;
+
+  const g=svg.append('g');
+  const zoom=d3.zoom().scaleExtent([0.2,10]).on('zoom',e=>{bubbleG.attr('transform',e.transform);g.attr('transform',e.transform);});
+  svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+
+  const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
+  const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
+  const linkLayer=g.append('g');
+  const linkEls=linkData.map(l=>linkLayer.append('line').attr('stroke',l.type==='tag'?'rgba(74,222,128,0.45)':'rgba(160,195,255,0.15)').attr('stroke-width',l.type==='tag'?1:0.6).attr('stroke-dasharray',l.type==='tag'?'4,3':'none').attr('stroke-linecap','round'));
+
+  const nodeLayer=g.append('g');
+  nodes.forEach(n=>{
+    const ng=nodeLayer.append('g').style('cursor',n.isTag?'default':'pointer')
+      .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.2).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+    ng.append('circle').attr('class','nhalo').attr('r',nodeR(n)+(n.isTag?7:4)).attr('fill','none').attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.8).attr('stroke-opacity',n.isTag?0.5:0.2);
+    ng.append('circle').attr('class','nbody').datum(n).attr('r',nodeR(n)).attr('fill',nodeColor(n)).attr('fill-opacity',n.isTag?0.95:0.88).attr('filter',`url(#${n.isTag?'bb-nt':'bb-nf'})`);
+    if(n.isTag){const r2=nodeR(n)*0.5;ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`).attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');}
+    ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em').attr('font-size',n.isTag?'9.5px':'10px').attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.88)').attr('pointer-events','none').text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
+    _attachNodeEvents(ng,n,nodeR,nodeColor,lc,links,linkData,linkEls,nodeLayer,tooltip,nodeById);
+  });
+
+  sim.on('tick',()=>{
+    linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('x1',l.src.x).attr('y1',l.src.y).attr('x2',l.tgt.x).attr('y2',l.tgt.y);});
+    let ni=0;nodeLayer.selectAll('g').each(function(){if(nodes[ni])d3.select(this).attr('transform',`translate(${nodes[ni].x||0},${nodes[ni].y||0})`);ni++;});
+  });
+  svg.on('click',()=>{tooltip.style.display='none';});
+}
+
+/* ════════════════════════════════
+   🌍 3D 지구본
+════════════════════════════════ */
+function drawGlobe(svgEl, nodes, links) {
+  if(window._globeRAF){cancelAnimationFrame(window._globeRAF);window._globeRAF=null;}
+  if(window._kaTimer){clearTimeout(window._kaTimer);window._kaTimer=null;}
+  graphPaused=false; graphSim=null;
+  const pauseBtn=document.getElementById('pause-btn');
+  if(pauseBtn){pauseBtn.textContent='⏸ 멈춤';pauseBtn.classList.remove('paused');}
+
+  const wrap=svgEl.parentElement;
+  const W=wrap.offsetWidth||900, H=wrap.offsetHeight||600;
+  const CX=W/2, CY=H/2, R=Math.min(W,H)*0.38;
+  const tooltip=document.getElementById('graph-tooltip');
+
+  const PALETTE=['#7eb8f7','#fbbf67','#f9a8d4','#a78bfa','#67e8f9','#86efac','#fca5a5','#6ee7b7','#fdba74','#c4b5fd'];
+  const TAG_CLR='#4ade80';
+  const fileFolders=[...new Set(nodes.filter(n=>!n.isTag).map(n=>n.folder))];
+  const folderColor=d3.scaleOrdinal(PALETTE).domain(fileFolders);
+  const nodeColor=d=>d.isTag?TAG_CLR:folderColor(d.folder);
+
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+  const defs=svg.append('defs');
+
+  const bgGr=defs.append('radialGradient').attr('id','gb-bg').attr('cx','42%').attr('cy','38%');
+  bgGr.append('stop').attr('offset','0%').attr('stop-color','#090f22');
+  bgGr.append('stop').attr('offset','100%').attr('stop-color','#020408');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#gb-bg)');
+
+  for(let i=0;i<250;i++){svg.append('circle').attr('cx',(Math.sin(i*127.1)*0.5+0.5)*W).attr('cy',(Math.sin(i*311.7)*0.5+0.5)*H).attr('r',(Math.sin(i*57.3)*0.5+0.5)*1.3+0.15).attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.55+0.07);}
+
+  const globeGr=defs.append('radialGradient').attr('id','gb-globe').attr('cx','35%').attr('cy','32%');
+  globeGr.append('stop').attr('offset','0%').attr('stop-color','#12305a');
+  globeGr.append('stop').attr('offset','60%').attr('stop-color','#0a1e3d');
+  globeGr.append('stop').attr('offset','100%').attr('stop-color','#04101f');
+  const hlGr=defs.append('radialGradient').attr('id','gb-hl').attr('cx','32%').attr('cy','28%');
+  hlGr.append('stop').attr('offset','0%').attr('stop-color','rgba(150,200,255,0.22)');
+  hlGr.append('stop').attr('offset','100%').attr('stop-color','rgba(0,0,0,0)');
+
+  const mkGlow=(id,blur)=>{const f=defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');const m=f.append('feMerge');m.append('feMergeNode').attr('in','blur');m.append('feMergeNode').attr('in','SourceGraphic');};
+  mkGlow('gb-nf',2.5);mkGlow('gb-nt',5);mkGlow('gb-halo',12);
+
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+22).attr('fill','none').attr('stroke','rgba(80,140,255,0.06)').attr('stroke-width',28).attr('filter','url(#gb-halo)');
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R+6).attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',7);
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R).attr('fill','url(#gb-globe)').attr('stroke','rgba(80,150,255,0.3)').attr('stroke-width',1.5);
+  svg.append('circle').attr('cx',CX).attr('cy',CY).attr('r',R).attr('fill','url(#gb-hl)').attr('pointer-events','none');
+  defs.append('clipPath').attr('id','gb-clip').append('circle').attr('cx',CX).attr('cy',CY).attr('r',R-1);
+
+  const bandStep=Math.PI/(fileFolders.length+1);
+  const folderBand={};
+  fileFolders.forEach((fol,i)=>{folderBand[fol]=-Math.PI/2+bandStep*(i+1);});
+  const folderCnt={},folderIdx={};
+  nodes.filter(n=>!n.isTag).forEach(n=>{folderCnt[n.folder]=(folderCnt[n.folder]||0)+1;});
+  nodes.forEach(n=>{
+    if(n.isTag)return;
+    folderIdx[n.folder]=folderIdx[n.folder]||0;
+    const total=folderCnt[n.folder],idx=folderIdx[n.folder]++;
+    n._lat=folderBand[n.folder]; n._lng=(2*Math.PI*idx)/total-Math.PI+0.05;
+  });
+  const tagNodes=nodes.filter(n=>n.isTag);
+  tagNodes.forEach((n,i)=>{n._lat=Math.PI/2-0.28;n._lng=(2*Math.PI*i)/Math.max(tagNodes.length,1)-Math.PI;});
+
+  const lc={}; nodes.forEach(n=>{lc[n.id]=0;});
+  links.forEach(l=>{const s=typeof l.source==='object'?l.source.id:l.source,t=typeof l.target==='object'?l.target.id:l.target;if(lc[s]!=null)lc[s]++;if(lc[t]!=null)lc[t]++;});
+  const nodeR=d=>d.isTag?Math.max(6,Math.min(6+(lc[d.id]||0)*2.8,22)):Math.max(4,Math.min(4+(lc[d.id]||0)*1.3,16));
+
+  let rotY=0,rotX=0.28;
+
+  function project(lat,lng){
+    const cosLat=Math.cos(lat),sinLat=Math.sin(lat);
+    const cosLng=Math.cos(lng+rotY),sinLng=Math.sin(lng+rotY);
+    const cosRX=Math.cos(rotX),sinRX=Math.sin(rotX);
+    const x3=cosLat*sinLng,y3=sinLat*cosRX-cosLat*cosLng*sinRX,z3=sinLat*sinRX+cosLat*cosLng*cosRX;
+    return{x:CX+R*x3,y:CY-R*y3,z:z3};
+  }
+
+  const gridG=svg.append('g').attr('clip-path','url(#gb-clip)');
+  const contentG=svg.append('g').attr('clip-path','url(#gb-clip)');
+  const linkLayer=contentG.append('g');
+  const nodeLayer=contentG.append('g');
+
+  const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
+  const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
+  const linkEls=linkData.map(l=>linkLayer.append('line').attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)').attr('stroke-width',l.type==='tag'?1.2:0.7).attr('stroke-dasharray',l.type==='tag'?'4,3':'none').attr('stroke-linecap','round'));
+
+  const nodeGroups=[];
+  nodes.forEach(n=>{
+    const ng=nodeLayer.append('g').style('cursor',n.isTag?'default':'pointer');
+    ng.append('circle').attr('class','nhalo').attr('r',nodeR(n)+(n.isTag?7:5)).attr('fill','none').attr('stroke',nodeColor(n)).attr('stroke-width',n.isTag?1.5:0.9).attr('stroke-opacity',n.isTag?0.5:0.22);
+    ng.append('circle').attr('class','nbody').datum(n).attr('r',nodeR(n)).attr('fill',nodeColor(n)).attr('fill-opacity',n.isTag?0.95:0.88).attr('filter',`url(#${n.isTag?'gb-nt':'gb-nf'})`);
+    if(n.isTag){const r2=nodeR(n)*0.5;ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`).attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');}
+    ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em').attr('font-size',n.isTag?'9.5px':'10px').attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.88)').attr('pointer-events','none').text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
+    _attachNodeEvents(ng,n,nodeR,nodeColor,lc,links,linkData,linkEls,nodeLayer,tooltip,nodeById);
+    nodeGroups.push({n,ng});
+  });
+
+  function render(){
+    gridG.selectAll('*').remove();
+    for(let lat=-60;lat<=60;lat+=30){
+      const latR=lat*Math.PI/180,pts=[];
+      for(let lng=-180;lng<=180;lng+=5){const p=project(latR,lng*Math.PI/180);if(p.z>-0.1)pts.push([p.x,p.y]);else if(pts.length>1){gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' ')).attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);pts.length=0;}}
+      if(pts.length>1)gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' ')).attr('fill','none').attr('stroke','rgba(100,170,255,0.12)').attr('stroke-width',0.5);
+    }
+    for(let lng=-180;lng<180;lng+=30){
+      const lngR=lng*Math.PI/180,pts=[];
+      for(let lat=-85;lat<=85;lat+=4){const p=project(lat*Math.PI/180,lngR);if(p.z>-0.1)pts.push([p.x,p.y]);else if(pts.length>1){gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' ')).attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);pts.length=0;}}
+      if(pts.length>1)gridG.append('polyline').attr('points',pts.map(p=>p.join(',')).join(' ')).attr('fill','none').attr('stroke','rgba(100,170,255,0.10)').attr('stroke-width',0.5);
+    }
+    const eqPts=[];for(let lng=-180;lng<=180;lng+=3){const p=project(0,lng*Math.PI/180);if(p.z>-0.05)eqPts.push([p.x,p.y]);}
+    if(eqPts.length>1)gridG.append('polyline').attr('points',eqPts.map(p=>p.join(',')).join(' ')).attr('fill','none').attr('stroke','rgba(100,200,255,0.22)').attr('stroke-width',1);
+
+    nodeGroups.forEach(({n,ng})=>{
+      const p=project(n._lat,n._lng);
+      const vis=p.z>-0.05,op=vis?Math.max(0,Math.min(1,(p.z+0.1)*1.8)):0,sc=vis?0.55+p.z*0.5:0;
+      ng.attr('transform',`translate(${p.x},${p.y}) scale(${Math.max(0,sc)})`).attr('opacity',op).style('display',op<0.02?'none':null);
+      n._px=p.x;n._py=p.y;n._pz=p.z;n._vis=vis;
+    });
     linkEls.forEach((line,i)=>{
       const l=linkData[i];
       if(!l.src._vis&&!l.tgt._vis){line.style('display','none');return;}
-      line.style('display',null)
-        .attr('x1',l.src._px).attr('y1',l.src._py)
-        .attr('x2',l.tgt._px).attr('y2',l.tgt._py)
-        .attr('opacity',Math.max(0,(Math.min(l.src._pz||0,l.tgt._pz||0)+0.1)*0.9));
+      line.style('display',null).attr('x1',l.src._px).attr('y1',l.src._py).attr('x2',l.tgt._px).attr('y2',l.tgt._py).attr('opacity',Math.max(0,(Math.min(l.src._pz||0,l.tgt._pz||0)+0.1)*0.9));
     });
   }
 
-  /* ── 자동 회전 ── */
-  function animate() {
-    if (!graphPaused) rotY += 0.004;
-    render();
-    window._globeRAF = requestAnimationFrame(animate);
-  }
+  function animate(){if(!graphPaused)rotY+=0.004;render();window._globeRAF=requestAnimationFrame(animate);}
   animate();
 
-  /* ── 드래그 회전 + 클릭 토글 ── */
-  let dragMoved = false;
+  // 드래그 + 클릭 토글
+  let isDragging=false,dragMoved=false,dragX0=0,dragY0=0,rotY0=0,rotX0=0;
   svg.on('mousedown',(e)=>{
-    if(e.target.closest&&e.target.closest('g[style*="cursor"]')) return;
-    isDragging=true; dragMoved=false;
-    dragX0=e.clientX; dragY0=e.clientY; rotY0=rotY; rotX0=rotX;
+    if(e.target.closest&&e.target.closest('g[style*="cursor"]'))return;
+    isDragging=true;dragMoved=false;dragX0=e.clientX;dragY0=e.clientY;rotY0=rotY;rotX0=rotX;
   });
   svg.on('mousemove',(e)=>{
-    if(!isDragging) return;
-    const dx=e.clientX-dragX0, dy=e.clientY-dragY0;
-    if(Math.abs(dx)>3||Math.abs(dy)>3) dragMoved=true;
-    rotY = rotY0+dx*0.007;
-    rotX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotX0-dy*0.007));
+    if(!isDragging)return;
+    const dx=e.clientX-dragX0,dy=e.clientY-dragY0;
+    if(Math.abs(dx)>3||Math.abs(dy)>3)dragMoved=true;
+    rotY=rotY0+dx*0.007;
+    rotX=Math.max(-Math.PI/2.5,Math.min(Math.PI/2.5,rotX0-dy*0.007));
   });
   svg.on('mouseup',(e)=>{
-    if(isDragging && !dragMoved) {
-      /* 드래그 없이 클릭 → 회전 토글 */
-      toggleSimulation();
-    }
+    if(isDragging&&!dragMoved)toggleSimulation();
     isDragging=false;
   });
-  svg.on('mouseleave',()=>{ isDragging=false; });
+  svg.on('mouseleave',()=>{isDragging=false;});
 
-  /* 줌은 지구 크기 조절 (스크롤) */
-  graphSvg = svg; graphZoom = null;
+  graphSvg=svg; graphZoom=null;
   svg.on('click',()=>{tooltip.style.display='none';});
 }
+
+/* ── 공통 노드 이벤트 ── */
+function _attachNodeEvents(ng, n, nodeR, nodeColor, lc, links, linkData, linkEls, nodeLayer, tooltip, nodeById) {
+  ng.on('mouseover',(e)=>{
+      tooltip.style.display='block';
+      if(n.isTag){
+        tooltip.innerHTML=`<span style="color:#4ade80;font-weight:700">#${n.name}</span>&nbsp;<span style="opacity:.7">${lc[n.id]||0}개 노트</span>`;
+      } else {
+        const tagHtml=n.tags&&n.tags.length?n.tags.map(t=>`<span style="display:inline-block;padding:1px 6px;margin:1px 2px;background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.45);border-radius:10px;color:#4ade80;font-size:10px">#${t}</span>`).join(''):'<span style="opacity:.45;font-size:10px">태그 없음</span>';
+        tooltip.innerHTML=`<div style="font-weight:600;margin-bottom:4px;color:rgba(220,235,255,0.95)">${n.name}</div><div>${tagHtml}</div>`;
+      }
+      const conn=new Set([n.id]);
+      links.forEach(l=>{const s=l.source?.id||l.source,t2=l.target?.id||l.target;if(s===n.id)conn.add(t2);if(t2===n.id)conn.add(s);});
+      linkEls.forEach((line,i)=>{const l=linkData[i],hit=l.src.id===n.id||l.tgt.id===n.id;line.attr('stroke',hit?(l.type==='tag'?'rgba(74,222,128,0.95)':'rgba(200,225,255,0.9)'):(l.type==='tag'?'rgba(74,222,128,0.05)':'rgba(160,200,255,0.03)')).attr('stroke-width',hit?2.5:0.25);});
+      nodeLayer.selectAll('circle.nbody').attr('fill-opacity',0.07);
+      conn.forEach(id=>{nodeLayer.selectAll('circle.nbody').filter(function(d2){return d2&&d2.id===id;}).attr('fill-opacity',0.95);});
+      ng.select('circle.nbody').attr('fill-opacity',1);
+      ng.select('circle.nhalo').attr('stroke-opacity',0.9).attr('r',nodeR(n)+11);
+    })
+    .on('mousemove',e=>{tooltip.style.left=(e.clientX+16)+'px';tooltip.style.top=(e.clientY-38)+'px';})
+    .on('mouseout',()=>{
+      tooltip.style.display='none';
+      linkEls.forEach((line,i)=>{const l=linkData[i];line.attr('stroke',l.type==='tag'?'rgba(74,222,128,0.55)':'rgba(160,200,255,0.2)').attr('stroke-width',l.type==='tag'?1.2:0.7);});
+      nodeLayer.selectAll('circle.nbody').attr('fill-opacity',function(d2){return d2?.isTag?0.95:0.88;});
+      ng.select('circle.nhalo').attr('stroke-opacity',n.isTag?0.5:0.22).attr('r',nodeR(n)+(n.isTag?7:5));
+    })
+    .on('click',(e)=>{
+      e.stopPropagation();
+      if(!n.isTag){loadObsidianFileByPath(n.path,n.name,n.folder);}
+      else{
+        const wrap=document.getElementById('graph-wrap');
+        if(wrap)showTagPopup(n,e,nodeById,links,wrap);
+      }
+    });
+}
+
 
 
 /* ── 옵시디안 에디터 상태 ── */
