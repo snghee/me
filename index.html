@@ -301,7 +301,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
-        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 모양 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -437,7 +436,6 @@ function showDashboard() {
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
-        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 모양 변경">🌌</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -1383,8 +1381,8 @@ function drawGraph(svgEl, nodes, links) {
    🌌 은하수 스타일
 ════════════════════════════════ */
 function drawGalaxy(svgEl, nodes, links) {
-  if (window._globeRAF) { cancelAnimationFrame(window._globeRAF); window._globeRAF=null; }
-  if (window._kaTimer)  { clearTimeout(window._kaTimer); window._kaTimer=null; }
+  if(window._globeRAF){cancelAnimationFrame(window._globeRAF);window._globeRAF=null;}
+  if(window._kaTimer){clearTimeout(window._kaTimer);window._kaTimer=null;}
   graphPaused=false; graphSim=null;
 
   const wrap=svgEl.parentElement;
@@ -1401,48 +1399,57 @@ function drawGalaxy(svgEl, nodes, links) {
   svg.selectAll('*').remove();
   const defs=svg.append('defs');
 
-  // 배경
+  // 고정 배경색
   const bgGr=defs.append('radialGradient').attr('id','gx-bg').attr('cx','50%').attr('cy','50%');
   bgGr.append('stop').attr('offset','0%').attr('stop-color','#0a0f2e');
   bgGr.append('stop').attr('offset','100%').attr('stop-color','#020408');
   svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#gx-bg)');
 
-  // 별
-  for(let i=0;i<220;i++){
-    svg.append('circle')
-      .attr('cx',(Math.sin(i*127.1)*0.5+0.5)*W).attr('cy',(Math.sin(i*311.7)*0.5+0.5)*H)
-      .attr('r',(Math.sin(i*57.3)*0.5+0.5)*1.2+0.15)
-      .attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.5+0.07);
-  }
-
-  // 은하 중심 글로우
+  // 은하 중심 글로우 그라디언트
   const cGr=defs.append('radialGradient').attr('id','gx-core').attr('cx','50%').attr('cy','50%');
   cGr.append('stop').attr('offset','0%').attr('stop-color','rgba(160,120,255,0.3)');
   cGr.append('stop').attr('offset','100%').attr('stop-color','rgba(0,0,0,0)');
-  svg.append('ellipse').attr('cx',W/2).attr('cy',H/2).attr('rx',W*0.35).attr('ry',H*0.22).attr('fill','url(#gx-core)');
 
   const mkGlow=(id,blur)=>{
     const f=defs.append('filter').attr('id',id).attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',blur).attr('result','blur');
-    const m=f.append('feMerge'); m.append('feMergeNode').attr('in','blur'); m.append('feMergeNode').attr('in','SourceGraphic');
+    const m=f.append('feMerge');m.append('feMergeNode').attr('in','blur');m.append('feMergeNode').attr('in','SourceGraphic');
   };
-  mkGlow('gx-nf',2.5); mkGlow('gx-nt',4.5); mkGlow('gx-arm',8);
+  mkGlow('gx-nf',2.5);mkGlow('gx-nt',4.5);mkGlow('gx-arm',8);
+
+  // 줌 레이어 (배경+별+콘텐츠 전부 여기 안에)
+  const g=svg.append('g');
+  const zoom=d3.zoom().scaleExtent([0.2,8]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom); graphZoom=zoom; graphSvg=svg;
+
+  // 배경 별 (줌과 함께 움직임)
+  g.append('rect').attr('x',-W).attr('y',-H).attr('width',W*3).attr('height',H*3).attr('fill','url(#gx-bg)').attr('pointer-events','none');
+  for(let i=0;i<280;i++){
+    g.append('circle')
+      .attr('cx',(Math.sin(i*127.1)*0.5+0.5)*W*1.5-W*0.25)
+      .attr('cy',(Math.sin(i*311.7)*0.5+0.5)*H*1.5-H*0.25)
+      .attr('r',(Math.sin(i*57.3)*0.5+0.5)*1.3+0.15)
+      .attr('fill','white').attr('opacity',(Math.sin(i*93.1)*0.5+0.5)*0.55+0.06)
+      .attr('pointer-events','none');
+  }
+  // 은하 중심 글로우
+  g.append('ellipse').attr('cx',W/2).attr('cy',H/2).attr('rx',W*0.35).attr('ry',H*0.22).attr('fill','url(#gx-core)').attr('pointer-events','none');
 
   const CX=W/2, CY=H/2, MAX_R=Math.min(W,H)*0.44;
   const numArms=Math.max(fileFolders.length,1);
 
-  // 나선팔 배치
-  const folderCnt={}, folderIdx2={};
+  // 나선팔 노드 배치
+  const folderCnt={},folderIdx2={};
   nodes.filter(n=>!n.isTag).forEach(n=>{folderCnt[n.folder]=(folderCnt[n.folder]||0)+1;});
   nodes.forEach(n=>{
     if(n.isTag)return;
     const ai=fileFolders.indexOf(n.folder);
     folderIdx2[n.folder]=folderIdx2[n.folder]||0;
-    const idx=folderIdx2[n.folder]++, total=folderCnt[n.folder];
+    const idx=folderIdx2[n.folder]++,total=folderCnt[n.folder];
     const armOffset=(2*Math.PI*ai)/numArms;
     const t=0.35+(idx/Math.max(total-1,1))*0.6;
-    const r=MAX_R*t, theta=armOffset+t*2.8+(idx%3-1)*0.18;
-    const spread=MAX_R*0.045*(1+t), perpAngle=theta+Math.PI/2;
+    const r=MAX_R*t,theta=armOffset+t*2.8+(idx%3-1)*0.18;
+    const spread=MAX_R*0.045*(1+t),perpAngle=theta+Math.PI/2;
     const scatter=(((idx*7+ai*13)%17)/17-0.5)*spread;
     n._px=CX+r*Math.cos(theta)+scatter*Math.cos(perpAngle);
     n._py=CY+r*Math.sin(theta)*0.55+scatter*Math.sin(perpAngle)*0.55;
@@ -1450,38 +1457,27 @@ function drawGalaxy(svgEl, nodes, links) {
   const tagNodes=nodes.filter(n=>n.isTag);
   tagNodes.forEach((n,i)=>{
     const angle=(2*Math.PI*i)/Math.max(tagNodes.length,1)-Math.PI/2;
-    n._px=CX+MAX_R*0.18*Math.cos(angle); n._py=CY+MAX_R*0.18*Math.sin(angle)*0.55;
+    n._px=CX+MAX_R*0.18*Math.cos(angle);n._py=CY+MAX_R*0.18*Math.sin(angle)*0.55;
   });
 
-  // 나선팔 배경 선
-  const armG=svg.append('g');
+  // 나선팔 배경선 (줌 레이어 안)
   fileFolders.forEach((fol,ai)=>{
     const pts=[];
     for(let t=0;t<=1;t+=0.02){
-      const armOffset=(2*Math.PI*ai)/numArms;
-      const theta=armOffset+(0.3+t*0.65)*2.8;
-      const r=MAX_R*(0.3+t*0.65);
-      pts.push([CX+r*Math.cos(theta),CY+r*Math.sin(theta)*0.55]);
+      const ao=(2*Math.PI*ai)/numArms,th=ao+(0.3+t*0.65)*2.8,r=MAX_R*(0.3+t*0.65);
+      pts.push([CX+r*Math.cos(th),CY+r*Math.sin(th)*0.55]);
     }
-    const lineGen=d3.line().x(d=>d[0]).y(d=>d[1]).curve(d3.curveCatmullRom);
-    svg.append('path').attr('d',lineGen(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',18).attr('stroke-opacity',0.12).attr('filter','url(#gx-arm)');
-    svg.append('path').attr('d',lineGen(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',1.5).attr('stroke-opacity',0.35);
+    const lg=d3.line().x(d=>d[0]).y(d=>d[1]).curve(d3.curveCatmullRom);
+    g.append('path').attr('d',lg(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',18).attr('stroke-opacity',0.12).attr('filter','url(#gx-arm)').attr('pointer-events','none');
+    g.append('path').attr('d',lg(pts)).attr('fill','none').attr('stroke',folderColor(fol)).attr('stroke-width',1.5).attr('stroke-opacity',0.35).attr('pointer-events','none');
   });
 
   const lc={}; nodes.forEach(n=>{lc[n.id]=0;});
-  links.forEach(l=>{
-    const s=typeof l.source==='object'?l.source.id:l.source;
-    const t=typeof l.target==='object'?l.target.id:l.target;
-    if(lc[s]!=null)lc[s]++; if(lc[t]!=null)lc[t]++;
-  });
+  links.forEach(l=>{const s=typeof l.source==='object'?l.source.id:l.source,t=typeof l.target==='object'?l.target.id:l.target;if(lc[s]!=null)lc[s]++;if(lc[t]!=null)lc[t]++;});
   const nodeR=d=>d.isTag?Math.max(5,Math.min(5+(lc[d.id]||0)*2.5,20)):Math.max(4,Math.min(4+(lc[d.id]||0)*1.2,15));
 
   const nodeById={}; nodes.forEach(n=>{nodeById[n.id]=n;});
   const linkData=links.map(l=>({src:nodeById[typeof l.source==='object'?l.source.id:l.source],tgt:nodeById[typeof l.target==='object'?l.target.id:l.target],type:l.type})).filter(l=>l.src&&l.tgt);
-
-  const g=svg.append('g');
-  const zoom=d3.zoom().scaleExtent([0.2,8]).on('zoom',e=>g.attr('transform',e.transform));
-  svg.call(zoom); graphZoom=zoom; graphSvg=svg;
 
   const linkLayer=g.append('g');
   const linkEls=linkData.map(l=>linkLayer.append('line').attr('stroke',l.type==='tag'?'rgba(74,222,128,0.4)':'rgba(160,190,255,0.12)').attr('stroke-width',l.type==='tag'?1:0.6).attr('stroke-dasharray',l.type==='tag'?'4,3':'none').attr('x1',l.src._px).attr('y1',l.src._py).attr('x2',l.tgt._px).attr('y2',l.tgt._py));
@@ -1493,9 +1489,10 @@ function drawGalaxy(svgEl, nodes, links) {
     ng.append('circle').attr('class','nbody').datum(n).attr('r',nodeR(n)).attr('fill',nodeColor(n)).attr('fill-opacity',n.isTag?0.95:0.88).attr('filter',`url(#${n.isTag?'gx-nt':'gx-nf'})`);
     if(n.isTag){const r2=nodeR(n)*0.5;ng.append('polygon').attr('points',`0,${-r2} ${r2},0 0,${r2} ${-r2},0`).attr('fill','#56d364').attr('fill-opacity',0.65).attr('pointer-events','none');}
     ng.append('text').attr('x',nodeR(n)+5).attr('dy','0.35em').attr('font-size',n.isTag?'9.5px':'10px').attr('fill',n.isTag?'rgba(74,222,128,0.92)':'rgba(210,225,255,0.85)').attr('pointer-events','none').text(n.name.length>16?n.name.slice(0,16)+'…':n.name);
-    _attachNodeEvents(ng, n, nodeR, nodeColor, lc, links, linkData, linkEls, nodeLayer, tooltip, nodeById);
+    _attachNodeEvents(ng,n,nodeR,nodeColor,lc,links,linkData,linkEls,nodeLayer,tooltip,nodeById);
   });
   svg.on('click',()=>{tooltip.style.display='none';});
+  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1589,6 +1586,7 @@ function drawForce(svgEl, nodes, links) {
     });
   });
   svg.on('click',()=>{tooltip.style.display='none';});
+  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1701,6 +1699,7 @@ function drawBubble(svgEl, nodes, links) {
     let ni=0;nodeLayer.selectAll('g').each(function(){if(nodes[ni])d3.select(this).attr('transform',`translate(${nodes[ni].x||0},${nodes[ni].y||0})`);ni++;});
   });
   svg.on('click',()=>{tooltip.style.display='none';});
+  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ════════════════════════════════
@@ -1852,6 +1851,7 @@ function drawGlobe(svgEl, nodes, links) {
 
   graphSvg=svg; graphZoom=null;
   svg.on('click',()=>{tooltip.style.display='none';});
+  svg.on('dblclick',(e)=>{if(!e.target.closest('g[style*="cursor"]'))cycleGraphStyle();});
 }
 
 /* ── 공통 노드 이벤트 ── */
