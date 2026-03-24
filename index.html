@@ -1,4 +1,4 @@
-<!-- v260322002 -->
+<!-- v260322003 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -200,7 +200,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .drawer-loading { padding:10px 24px; font-size:13px; color:rgba(255,255,255,.4); }
 
 /* ── 히어로 ── */
-.content-area > #dashboard, .content-area > .markdown-body > #dashboard { display:flex; flex-direction:column; height:100%; }
+.content-area > #dashboard, .content > #dashboard, .content.markdown-body > #dashboard { display:flex !important; flex-direction:column !important; height:100% !important; min-height:0 !important; }
 #dashboard { display:flex; flex-direction:column; height:100%; flex:1; min-height:0; }
 .hero-graph {
   flex:1;
@@ -1275,9 +1275,17 @@ document.getElementById('navbar').addEventListener('mouseleave', hideGraph);
 let graphZoom = null, graphSvg = null, graphSim = null, graphPaused = false;
 
 async function initObsidianGraph() {
+  // DOM 렌더링 완료 후 실행 (offsetWidth 보장)
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   const wrap = document.getElementById('graph-wrap');
   const svg  = document.getElementById('obs-graph');
   if (!svg || !wrap) return;
+
+  // wrap 크기가 0이면 잠깐 기다리기
+  if (wrap.offsetWidth === 0) {
+    await new Promise(r => setTimeout(r, 100));
+  }
 
   // 로딩 표시
   svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#666" font-size="13" dy=".3em">⏳ 그래프 로딩 중...</text>';
