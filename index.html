@@ -1,4 +1,4 @@
-<!-- v260322003 -->
+<!-- v260322004 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -208,8 +208,12 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   background:#0d1117;
   position:relative;
   width:100%;
+  isolation:isolate;
 }
-.hero-graph svg { width:100%; height:100%; display:block; }
+.hero-graph svg { width:100%; height:100%; display:block; position:absolute; top:0; left:0; }
+.graph-controls { position:absolute; bottom:12px; right:12px; display:flex; gap:5px; z-index:100; pointer-events:all; }
+.graph-btn { background:rgba(20,30,60,0.88); border:1px solid rgba(255,255,255,0.4); color:white; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:14px; backdrop-filter:blur(4px); position:relative; z-index:100; }
+.graph-btn:hover { background:rgba(60,100,200,0.75); border-color:rgba(255,255,255,0.7); }
 .graph-overlay-label {
   position:absolute; top:14px; left:18px; z-index:10; pointer-events:none;
   color:rgba(255,255,255,0.25); font-size:11px; font-weight:600;
@@ -245,9 +249,6 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-node:hover circle { r:7; }
 .graph-node text { font-size:13px; fill:rgba(255,255,255,0.85); pointer-events:none; }
 .graph-link { stroke:rgba(100,181,246,0.3); stroke-opacity:1; stroke-width:1; }
-.graph-controls { position:absolute; bottom:12px; right:12px; display:flex; gap:5px; z-index:20; }
-.graph-btn { background:rgba(20,30,60,0.85); border:1px solid rgba(255,255,255,0.35); color:white; padding:6px 11px; border-radius:6px; cursor:pointer; font-size:13px; backdrop-filter:blur(4px); }
-.graph-btn:hover { background:rgba(60,100,200,0.7); border-color:rgba(255,255,255,0.6); }
 .graph-tooltip { position:fixed; background:rgba(10,16,32,0.96); color:white; padding:8px 12px; border-radius:8px; font-size:11px; pointer-events:none; display:none; z-index:99999; max-width:260px; line-height:1.6; box-shadow:0 4px 18px rgba(0,0,0,0.5); border:1px solid rgba(100,170,255,0.15); }
 
 .hero-graph { opacity:1; }
