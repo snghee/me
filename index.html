@@ -1,4 +1,4 @@
-<!-- v260322001 -->
+<!-- v260322002 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -245,9 +245,9 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .graph-node:hover circle { r:7; }
 .graph-node text { font-size:13px; fill:rgba(255,255,255,0.85); pointer-events:none; }
 .graph-link { stroke:rgba(100,181,246,0.3); stroke-opacity:1; stroke-width:1; }
-.graph-controls { position:absolute; bottom:8px; right:8px; display:flex; gap:4px; z-index:10; }
-.graph-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
-.graph-btn:hover { background:rgba(255,255,255,0.2); }
+.graph-controls { position:absolute; bottom:12px; right:12px; display:flex; gap:5px; z-index:20; }
+.graph-btn { background:rgba(20,30,60,0.85); border:1px solid rgba(255,255,255,0.35); color:white; padding:6px 11px; border-radius:6px; cursor:pointer; font-size:13px; backdrop-filter:blur(4px); }
+.graph-btn:hover { background:rgba(60,100,200,0.7); border-color:rgba(255,255,255,0.6); }
 .graph-tooltip { position:fixed; background:rgba(10,16,32,0.96); color:white; padding:8px 12px; border-radius:8px; font-size:11px; pointer-events:none; display:none; z-index:99999; max-width:260px; line-height:1.6; box-shadow:0 4px 18px rgba(0,0,0,0.5); border:1px solid rgba(100,170,255,0.15); }
 
 .hero-graph { opacity:1; }
@@ -302,11 +302,14 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
-        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 스타일 변경">🌌</button>
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="3D지구본">🌍</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
       </div>
+    </div>
+  </div>
+</div>
 </div><!-- content-area -->
 </div><!-- main-layout -->
 
@@ -438,7 +441,7 @@ function showDashboard() {
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
       <div class="graph-controls">
-        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="그래프 스타일 변경">🌌</button>
+        <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="3D지구본">🌍</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
         <button class="graph-btn" onclick="resetZoom()" title="초기화">⟳</button>
@@ -1319,42 +1322,53 @@ async function initObsidianGraph() {
       } catch(e) {}
     }));
 
-    const nodes = rawNodes;
+    const nodes = rawNodes.map(n => ({ ...n, isTag: false }));
 
     if (!nodes.length) {
       svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#aaa" font-size="13" dy=".3em">노트가 없습니다</text>';
       return;
     }
 
-    // 링크: 폴더 기반 + 태그 기반 (중복 방지)
+    // ── 태그 독립 노드 생성 ──
+    const allTags = new Set();
+    nodes.forEach(n => (n.tags||[]).forEach(t => allTags.add(t)));
+    const tagNodes = [...allTags].map(t => ({
+      id: '__tag__' + t, name: t, path: null, folder: '__tag__', tags: [], isTag: true
+    }));
+    const allNodes = [...nodes, ...tagNodes];
+
+    // ── 링크: 폴더 기반(folder) + 태그 기반(tag) ──
     const links = [];
     const linkSet = new Set();
-    const addLink = (a, b) => {
-      const key = [a,b].sort().join('||');
-      if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b }); }
+    const addLink = (a, b, type) => {
+      const key = [a,b].sort().join('||') + '|' + type;
+      if (!linkSet.has(key)) { linkSet.add(key); links.push({ source: a, target: b, type }); }
     };
     // 같은 폴더끼리 연결
     const folderMap = {};
     nodes.forEach(n => { if(!folderMap[n.folder]) folderMap[n.folder]=[]; folderMap[n.folder].push(n.id); });
     Object.values(folderMap).forEach(ids => {
-      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
+      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1], 'folder');
     });
-    // 같은 태그끼리 연결
-    const tagMap = {};
-    nodes.forEach(n => { (n.tags||[]).forEach(t=>{ if(!tagMap[t]) tagMap[t]=[]; tagMap[t].push(n.id); }); });
-    Object.values(tagMap).forEach(ids => {
-      for (let i = 0; i < ids.length-1; i++) addLink(ids[i], ids[i+1]);
+    // 파일 → 태그 노드 연결
+    nodes.forEach(n => {
+      (n.tags||[]).forEach(t => {
+        addLink(n.id, '__tag__' + t, 'tag');
+      });
     });
 
-    drawGraph(svg, nodes, links);
+    drawGraph(svg, allNodes, links);
     document.getElementById('graph-wrap').classList.add('loaded');
+    // 버튼 아이콘 현재 스타일로 동기화
+    const sb = document.getElementById('graph-style-btn');
+    if (sb) { sb.textContent = _graphStyles[_graphStyle]; sb.title = _graphLabels[_graphStyle]; }
   } catch(e) {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e74c3c" font-size="12" dy=".3em">⚠️ GitHub 연결 실패: ${e.message}</text>`;
   }
 }
 
 /* ── 그래프 스타일 관리 ── */
-let _graphStyle = 0; // 0=은하수 1=포스 2=버블 3=지구본
+let _graphStyle = 3; // 0=은하수 1=포스 2=버블 3=지구본
 const _graphStyles = ['🌌','🕸','🔵','🌍'];
 const _graphLabels = ['은하수','포스그래프','버블차트','3D지구본'];
 let _graphNodes = null, _graphLinks = null;
@@ -1364,7 +1378,7 @@ function cycleGraphStyle() {
   const btn = document.getElementById('graph-style-btn');
   if (btn) {
     btn.textContent = _graphStyles[_graphStyle];
-    btn.title = _graphLabels[_graphStyle] + '로 변경';
+    btn.title = _graphLabels[_graphStyle];
   }
   const svgEl = document.getElementById('obs-graph');
   if (svgEl && _graphNodes) drawGraph(svgEl, _graphNodes, _graphLinks);
