@@ -1,4 +1,4 @@
-<!-- v260322004 -->
+<!-- v260322005 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -211,7 +211,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
   isolation:isolate;
 }
 .hero-graph svg { width:100%; height:100%; display:block; position:absolute; top:0; left:0; }
-.graph-controls { position:absolute; bottom:12px; right:12px; display:flex; gap:5px; z-index:100; pointer-events:all; }
+.graph-controls { position:fixed; bottom:18px; right:18px; display:none; gap:5px; z-index:9000; pointer-events:all; }
+.graph-controls.visible { display:flex; }
 .graph-btn { background:rgba(20,30,60,0.88); border:1px solid rgba(255,255,255,0.4); color:white; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:14px; backdrop-filter:blur(4px); position:relative; z-index:100; }
 .graph-btn:hover { background:rgba(60,100,200,0.75); border-color:rgba(255,255,255,0.7); }
 .graph-overlay-label {
@@ -302,7 +303,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
       <div class="graph-overlay-label">SBJ DNX · Obsidian Notes</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
-      <div class="graph-controls">
+      <div class="graph-controls visible">
         <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="3D지구본">🌍</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
@@ -434,6 +435,7 @@ document.addEventListener('click', function(e) {
 // navbar hover 시 화면 유지 (아무 동작 없음)
 
 function showDashboard() {
+  document.querySelectorAll('.graph-controls').forEach(el=>el.classList.add('visible'));
   contentEl.className = 'content markdown-body';
   contentEl.innerHTML = `
   <div id="dashboard">
@@ -441,7 +443,7 @@ function showDashboard() {
       <div class="graph-overlay-label">SBJ DNX · Obsidian Notes</div>
       <svg id="obs-graph"></svg>
       <div class="graph-tooltip" id="graph-tooltip"></div>
-      <div class="graph-controls">
+      <div class="graph-controls visible">
         <button class="graph-btn" id="graph-style-btn" onclick="cycleGraphStyle()" title="3D지구본">🌍</button>
         <button class="graph-btn" onclick="zoomIn()" title="확대">＋</button>
         <button class="graph-btn" onclick="zoomOut()" title="축소">－</button>
@@ -898,6 +900,7 @@ async function downloadObsidianFile(filePath, name) {
 
 /* ── 파일 로드 ── */
 async function loadFile(filePath, itemName, folder) {
+  document.querySelectorAll('.graph-controls').forEach(el=>el.classList.remove('visible'));
   // 대시보드 숨기고 파일 모드로 전환
   const dash = document.getElementById('dashboard');
   if (dash) dash.style.display = 'none';
@@ -1953,6 +1956,7 @@ async function ghGetFileMeta(path) {
 }
 
 function renderEditor(name, folder) {
+  document.querySelectorAll('.graph-controls').forEach(el=>el.classList.remove('visible'));
   const isEdit    = _editorMode === 'edit';
   const isSplit   = _editorMode === 'split';
   const isPreview = _editorMode === 'preview';
