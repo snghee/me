@@ -1,4 +1,4 @@
-<!-- v260322005 -->
+<!-- v260325001 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -463,7 +463,7 @@ function renderMenu() {
     const btn = document.createElement('button');
     btn.id = 'btn-' + id;
     btn.className = 'nav-btn';
-    btn.innerHTML = `${folder} <span class="arrow">▾</span>`;
+    btn.innerHTML = `${escHtml(folder)} <span class="arrow">▾</span>`;
 
     const dd = document.createElement('div');
     dd.id = 'dd-' + id;
@@ -595,7 +595,7 @@ function renderMenu() {
               });
             }
           } catch(e) {
-            subList.innerHTML = `<div class="drawer-loading">❌ ${e.message}</div>`;
+            subList.innerHTML = `<div class="drawer-loading">❌ ${escHtml(e.message)}</div>`;
           }
         }
       });
@@ -757,7 +757,7 @@ async function populateObsidianMenu(dd) {
         list.appendChild(item);
       });
     });
-  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ GitHub 로드 실패: ${e.message}</div>`; }
+  } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ GitHub 로드 실패: ${escHtml(e.message)}</div>`; }
 }
 
 async function populateExecMenu(dd) {
@@ -847,7 +847,7 @@ async function populateExecMenu(dd) {
       dd.appendChild(folDiv); dd.appendChild(list);
     });
   } catch(e) {
-    dd.innerHTML = `<div class="dd-item" style="color:#e74c3c">⚠️ ${e.message}</div>`;
+    dd.innerHTML = `<div class="dd-item" style="color:#e74c3c">⚠️ ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -1030,7 +1030,7 @@ function renderStats(folder, itemName) {
 
   contentEl.className='content markdown-body';
   contentEl.innerHTML=`<div class="file-inner">
-    <div class="breadcrumb">${folder} > ${itemName}</div>
+    <div class="breadcrumb">${escHtml(folder)} > ${escHtml(itemName)}</div>
     <div class="stats-panel">
       <div class="stats-panel-title">📊 사용 통계</div>
       <div class="stats-grid">
@@ -1307,7 +1307,7 @@ async function initObsidianGraph() {
     const sb = document.getElementById('graph-style-btn');
     if (sb) { sb.textContent = _graphStyles[_graphStyle]; sb.title = _graphLabels[_graphStyle]; }
   } catch(e) {
-    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e74c3c" font-size="12" dy=".3em">⚠️ GitHub 연결 실패: ${e.message}</text>`;
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e74c3c" font-size="12" dy=".3em">⚠️ GitHub 연결 실패: ${escHtml(e.message)}</text>`;
   }
 }
 
@@ -1865,7 +1865,7 @@ async function loadObsidianFileByPath(filePath, name, folder) {
 
   // 로딩 표시
   contentEl.className = 'content markdown-body';
-  contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">옵시디안 > ${folder} > ${name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+  contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">옵시디안 > ${escHtml(folder)} > ${escHtml(name)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
 
   try {
     const meta = await ghGetFileMeta(filePath);
@@ -1874,7 +1874,7 @@ async function loadObsidianFileByPath(filePath, name, folder) {
     try { _currentRawContent = decodeURIComponent(escape(_currentRawContent)); } catch(e2){}
     renderEditor(name, folder);
   } catch(e) {
-    contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`;
+    contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -2090,12 +2090,12 @@ async function saveToGithub(name, folder) {
 async function showDeleteDialog() {
   document.getElementById('delete-dialog-overlay')?.remove();
 
-  // ── GitHub 토큰 확인 ──
-  let token = localStorage.getItem('gh_write_token');
+  // ── GitHub 토큰 확인 (sessionStorage: 브라우저 종료 시 자동 소멸) ──
+  let token = sessionStorage.getItem('gh_write_token');
   if (!token) {
-    token = prompt('GitHub Token 입력 (최초 1회):');
+    token = prompt('GitHub Personal Access Token을 입력하세요.\n(이 세션에서만 유지되며 브라우저 종료 시 삭제됩니다)');
     if (!token) return;
-    localStorage.setItem('gh_write_token', token);
+    sessionStorage.setItem('gh_write_token', token);
   }
 
   // ── 다이얼로그 골격 ──
@@ -2216,7 +2216,7 @@ async function showDeleteDialog() {
   async function renderObsTree() {
     let tree = [];
     try { tree = await ghGetTree(); }
-    catch(e) { treeWrap.innerHTML = `<div style="color:#dc2626;padding:16px;font-size:13px;">❌ 목록 로드 실패: ${e.message}</div>`; return; }
+    catch(e) { treeWrap.innerHTML = `<div style="color:#dc2626;padding:16px;font-size:13px;">❌ 목록 로드 실패: ${escHtml(e.message)}</div>`; return; }
 
     const files = tree.filter(f => !f.path.startsWith('.')).map(f => {
       const parts = f.path.split('/');
@@ -2230,7 +2230,7 @@ async function showDeleteDialog() {
     const mkFileRow = (f, indent=10) => {
       const row = document.createElement('div');
       row.style.cssText = `display:flex;align-items:center;padding:6px ${indent}px;border-radius:6px;cursor:pointer;font-size:13px;color:#334155;gap:7px;`;
-      row.innerHTML = `<span style="opacity:.6;font-size:12px">📄</span><span>${f.name}</span>`;
+      row.innerHTML = `<span style="opacity:.6;font-size:12px">📄</span><span>${escHtml(f.name)}</span>`;
       row.onclick = () => { highlightRow(row); setSelected(f); };
       return row;
     };
@@ -2352,12 +2352,12 @@ async function showDeleteDialog() {
 async function showSaveDialog(name, folder) {
   document.getElementById('save-dialog-overlay')?.remove();
 
-  // 토큰 확인
-  let token = localStorage.getItem('gh_write_token');
+  // 토큰 확인 (sessionStorage: 브라우저 종료 시 자동 소멸)
+  let token = sessionStorage.getItem('gh_write_token');
   if (!token) {
-    token = prompt('GitHub Token 입력 (최초 1회):');
+    token = prompt('GitHub Personal Access Token을 입력하세요.\n(이 세션에서만 유지되며 브라우저 종료 시 삭제됩니다)');
     if (!token) return;
-    localStorage.setItem('gh_write_token', token);
+    sessionStorage.setItem('gh_write_token', token);
   }
 
   // 폴더 목록 로드
