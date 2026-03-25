@@ -28,7 +28,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .sidebar-header-title { color:#64b5f6; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
 .sidebar-graph { flex:1; position:relative; overflow:hidden; }
 .sidebar-graph svg { width:100%; height:100%; display:block; }
-.graph-wrap { height:100%; }
+.sidebar-graph-inner { height:100%; }
 @media (max-width:1024px) { .sidebar { width:260px; } }
 @media (max-width:768px)  { .sidebar { display:none; } }
 
@@ -120,12 +120,9 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 }
 .editor-pane:focus { border-color:#3498db; background:white; }
 .split-wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; height:calc(100vh - 240px); }
-.split-wrap .editor-pane { height:100% !important; }
-.split-wrap .preview-pane { height:100%; overflow-y:auto; padding:16px; border:1px solid #e2e8f0; border-radius:8px; }
+.split-wrap .editor-pane { height:100%; box-sizing:border-box; }
+.split-wrap .preview-pane { height:100%; overflow-y:auto; padding:16px; border:1px solid #e2e8f0; border-radius:8px; min-height:500px; }
 .preview-pane { min-height:500px; }
-.split-wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.split-wrap .editor-pane { box-sizing:border-box; }
-.split-wrap .preview-pane { min-height:600px; padding:16px; border:1px solid #e2e8f0; border-radius:8px; overflow-y:auto; }
 .save-toast {
   position:fixed; bottom:24px; right:24px; z-index:99999;
   background:#1e293b; color:white; padding:12px 20px; border-radius:8px;
@@ -242,8 +239,8 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 .log-empty { padding:20px; text-align:center; color:#bbb; font-size:12px; }
 .two-col { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
 
-/* ── 옵시디안 그래프 ── */
-.graph-wrap { border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-bottom:28px; background:#1a1a2e; position:relative; }
+/* ── 옵시디안 그래프 (대시보드 위젯용) ── */
+.graph-wrap { border:1px solid #e8edf2; border-radius:8px; overflow:hidden; margin-bottom:28px; background:#1a1a2e; position:relative; height:100%; }
 .graph-wrap svg { display:block; width:100%; height:340px; }
 .graph-node { cursor:pointer; }
 .graph-node circle { stroke-width:1.5; transition:r .2s; }
@@ -476,7 +473,6 @@ function renderMenu() {
       return async function(e) {
         e.stopPropagation();
         const isOpen = capturedDd.classList.contains('open');
-        console.log('[MENU CLICK] folder='+capturedFolder+' isOpen='+isOpen+' ddId='+capturedDd.id);
         document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('open'));
         openId = null;
@@ -488,7 +484,6 @@ function renderMenu() {
           capturedDd.classList.add('open');
           document.getElementById('btn-' + capturedId).classList.add('open');
           openId = capturedId;
-          console.log('[MENU] opened dd classList:', capturedDd.classList.toString());
           if (capturedFolder === '구글드라이브' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
           if (capturedFolder === '옵시디안'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
           if (capturedFolder === '실행'         && capturedDd.childElementCount === 0) await populateExecMenu(capturedDd);
@@ -672,16 +667,16 @@ async function populateServiceMenu(dd) {
       grouped[fol].forEach(f => {
       const item = makeDdItem('📄 '+f.name, async () => {
         closeAll();
-        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${f.name}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
         try {
           await initGapi();
           const res = await gapi.client.drive.files.get({ fileId:f.id, alt:'media' });
           const text = typeof res.body==='string' ? res.body : JSON.stringify(res.body,null,2);
-          const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${text}</pre>`;
+          const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${escHtml(text)}</pre>`;
           recordDownload(f.name, f.id);
           contentEl.className='content markdown-body';
-          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${f.name}</div><h2 style="margin-bottom:20px">${f.name}</h2><a href="https://drive.google.com/uc?export=download&id=${f.id}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
-        } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${e.message}</div></div>`; }
+          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><h2 style="margin-bottom:20px">${escHtml(f.name)}</h2><a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
+        } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${escHtml(e.message)}</div></div>`; }
       });
         item.style.paddingLeft='28px';
         list.appendChild(item);
@@ -904,19 +899,19 @@ async function loadFile(filePath, itemName, folder) {
   // 대시보드 숨기고 파일 모드로 전환
   const dash = document.getElementById('dashboard');
   if (dash) dash.style.display = 'none';
-  contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+  contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${escHtml(folder)} > ${escHtml(itemName)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
   if (filePath==='STATS')       { renderStats(folder,itemName); return; }
   if (filePath==='INTRO_STATS') { renderIntroStats(); return; }
   if (filePath==='NEW_DOC')     { renderNewDoc(); return; }
   if (filePath==='DELETE_FILE') { showDeleteDialog(); return; }
   try {
     const r = await fetch(filePath);
-    if (!r.ok) throw new Error(`파일 없음: ${filePath}`);
+    if (!r.ok) throw new Error(`파일 없음: ${escHtml(filePath)}`);
     const md = await r.text();
     contentEl.className='content markdown-body';
-    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div>${mdToHtml(md)}</div>`;
+    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${escHtml(folder)} > ${escHtml(itemName)}</div>${mdToHtml(md)}</div>`;
   } catch(e) {
-    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${folder} > ${itemName}</div><div class="err">❌ ${e.message}</div></div>`;
+    contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">${escHtml(folder)} > ${escHtml(itemName)}</div><div class="err">❌ ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -1018,70 +1013,7 @@ async function saveNewDoc() {
   showSaveDialog('새문서.md', '루트');
 }
 
-async function _saveNewDoc_unused() {
-  const folder = '';
-  const title  = '';
-  const taSplit  = document.getElementById('nd-textarea');
-  const taSingle = document.getElementById('nd-textarea-single');
-  const body = (taSplit && taSplit.style.display !== 'none') ? taSplit.value : (taSingle ? taSingle.value : '');
 
-  if (!title) { showToast('❌ 파일명을 입력하세요', true); return; }
-
-  const fileName   = title.endsWith('.md') ? title : title + '.md';
-  const filePath   = folder ? `${folder}/${fileName}` : fileName;
-  // 경로 세그먼트별 인코딩 (슬래시 보존)
-  const encodedPath = folder
-    ? `${encodeURIComponent(folder)}/${encodeURIComponent(fileName)}`
-    : encodeURIComponent(fileName);
-
-  let token = localStorage.getItem('gh_write_token');
-  if (!token) {
-    token = prompt('GitHub Token 입력 (최초 1회):');
-    if (!token) return;
-    localStorage.setItem('gh_write_token', token);
-  }
-
-  const encoded = btoa(unescape(encodeURIComponent(body)));
-
-  // 파일 존재 여부 확인 (SHA 필요)
-  let sha = undefined;
-  try {
-    const check = await fetch(
-      `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
-      { headers: { 'Authorization': `token ${token}` } }
-    );
-    if (check.ok) { const j = await check.json(); sha = j.sha; }
-  } catch(e) {}
-
-  const payload = { message: sha ? `Update ${fileName}` : `Create ${fileName}`, content: encoded, branch: GITHUB_BRANCH };
-  if (sha) payload.sha = sha;
-
-  const btn = document.querySelector('#new-doc-wrap .editor-save-btn, .editor-save-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 저장 중...'; }
-
-  const r = await fetch(
-    `${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodedPath}`,
-    { method:'PUT', headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(payload) }
-  );
-
-  if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
-
-  if (r.ok) {
-    const result = await r.json();
-    showToast(`✅ 저장 완료: ${filePath}`);
-    // 저장 후 에디터로 전환
-    _currentFilePath   = filePath;
-    _currentFileSha    = result.content.sha;
-    _currentFileName   = fileName;
-    _currentFileFolder = folder || '루트';
-    _currentRawContent = body;
-    _editorMode = 'preview';
-    renderEditor(_currentFileName, _currentFileFolder);
-  } else {
-    const err = await r.json();
-    showToast('❌ ' + (err.message || '저장 실패'), true);
-  }
-}
 
 function renderStats(folder, itemName) {
   const dlStats = JSON.parse(localStorage.getItem('downloadStats')||'[]');
