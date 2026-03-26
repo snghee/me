@@ -1,4 +1,4 @@
-<!-- v260326002 -->
+<!-- v260326003 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -403,6 +403,7 @@ const menuData = {
 
 const contentEl = document.getElementById('content');
 let driveInit=false, driveLoaded=false, obsLoaded=false;
+let _obsNeedsReload = false; // 삭제/저장 후 옵시디안 메뉴 강제 재로드 플래그
 
 /* ── Google Drive ── */
 function initGapi() {
@@ -494,7 +495,7 @@ function renderMenu() {
           document.getElementById('btn-' + capturedId).classList.add('open');
           openId = capturedId;
           if (capturedFolder === '구글드라이브' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
-          if (capturedFolder === '옵시디안'     && capturedDd.childElementCount === 0) await populateObsidianMenu(capturedDd);
+          if (capturedFolder === '옵시디안'     && (capturedDd.childElementCount === 0 || _obsNeedsReload)) { _obsNeedsReload = false; await populateObsidianMenu(capturedDd); }
           if (capturedFolder === '실행'         && capturedDd.childElementCount === 0) await populateExecMenu(capturedDd);
         }
       };
@@ -2334,7 +2335,8 @@ async function showDeleteDialog() {
             body: JSON.stringify({ message:`Delete ${selectedFile.name}`, sha:meta.sha, branch:GITHUB_BRANCH }) }
         );
         if (!r.ok) { const e = await r.json(); throw new Error(e.message||'삭제 실패'); }
-        /* 드롭다운 즉시 재로드 → 삭제된 파일이 목록에서 바로 사라짐 */
+        /* 메뉴 즉시 갱신 */
+        _obsNeedsReload = false;
         const obsDD = document.getElementById('dd-2');
         if (obsDD) { obsDD.innerHTML = ''; await populateObsidianMenu(obsDD); }
         _currentFilePath = null; _currentFileSha = null; _currentRawContent = '';
@@ -2485,6 +2487,10 @@ async function showSaveDialog(name, folder) {
 
       if (btn) { btn.disabled = false; btn.innerHTML = '저장'; }
       showToast('✅ 저장 완료!');
+      /* 메뉴 즉시 갱신 */
+      _obsNeedsReload = false;
+      const obsDD2 = document.getElementById('dd-2');
+      if (obsDD2) { obsDD2.innerHTML = ''; await populateObsidianMenu(obsDD2); }
       renderEditor(_currentFileName, _currentFileFolder);
     } catch(e) {
       showToast('❌ ' + e.message, true);
