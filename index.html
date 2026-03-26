@@ -1,4 +1,4 @@
-<!-- v260326001 -->
+<!-- v260326002 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2099,12 +2099,12 @@ async function saveToGithub(name, folder) {
 async function showDeleteDialog() {
   document.getElementById('delete-dialog-overlay')?.remove();
 
-  // ── GitHub 토큰 확인 (sessionStorage: 브라우저 종료 시 자동 소멸) ──
-  let token = sessionStorage.getItem('gh_write_token');
+  // ── GitHub 토큰 확인 (localStorage: 브라우저 종료 후에도 유지) ──
+  let token = localStorage.getItem('gh_write_token');
   if (!token) {
-    token = prompt('GitHub Personal Access Token을 입력하세요.\n(이 세션에서만 유지되며 브라우저 종료 시 삭제됩니다)');
+    token = prompt('GitHub Personal Access Token을 입력하세요.\n(브라우저에 저장되어 다음 방문 시 재입력 불필요)');
     if (!token) return;
-    sessionStorage.setItem('gh_write_token', token);
+    localStorage.setItem('gh_write_token', token.trim());
   }
 
   // ── 다이얼로그 골격 ──
@@ -2334,8 +2334,9 @@ async function showDeleteDialog() {
             body: JSON.stringify({ message:`Delete ${selectedFile.name}`, sha:meta.sha, branch:GITHUB_BRANCH }) }
         );
         if (!r.ok) { const e = await r.json(); throw new Error(e.message||'삭제 실패'); }
+        /* 드롭다운 즉시 재로드 → 삭제된 파일이 목록에서 바로 사라짐 */
         const obsDD = document.getElementById('dd-2');
-        if (obsDD) obsDD.innerHTML = '';
+        if (obsDD) { obsDD.innerHTML = ''; await populateObsidianMenu(obsDD); }
         _currentFilePath = null; _currentFileSha = null; _currentRawContent = '';
 
       } else {
@@ -2361,12 +2362,12 @@ async function showDeleteDialog() {
 async function showSaveDialog(name, folder) {
   document.getElementById('save-dialog-overlay')?.remove();
 
-  // 토큰 확인 (sessionStorage: 브라우저 종료 시 자동 소멸)
-  let token = sessionStorage.getItem('gh_write_token');
+  // 토큰 확인 (localStorage: 브라우저 종료 후에도 유지)
+  let token = localStorage.getItem('gh_write_token');
   if (!token) {
-    token = prompt('GitHub Personal Access Token을 입력하세요.\n(이 세션에서만 유지되며 브라우저 종료 시 삭제됩니다)');
+    token = prompt('GitHub Personal Access Token을 입력하세요.\n(브라우저에 저장되어 다음 방문 시 재입력 불필요)');
     if (!token) return;
-    sessionStorage.setItem('gh_write_token', token);
+    localStorage.setItem('gh_write_token', token.trim());
   }
 
   // 폴더 목록 로드
