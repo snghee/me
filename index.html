@@ -1,4 +1,4 @@
-<!-- v260327001 -->
+<!-- v260327002 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2336,13 +2336,14 @@ async function showDeleteDialog() {
             body: JSON.stringify({ message:`Delete ${selectedFile.name}`, sha:meta.sha, branch:GITHUB_BRANCH }) }
         );
         if (!r.ok) { const e = await r.json(); throw new Error(e.message||'삭제 실패'); }
+        const deletedName = selectedFile.name; /* setSelected(null) 전에 이름 저장 */
         /* 상단 드롭다운 메뉴 즉시 갱신 */
         const obsDD = document.getElementById('dd-2');
         if (obsDD) { obsDD.innerHTML = ''; await populateObsidianMenu(obsDD); }
         _currentFilePath = null; _currentFileSha = null; _currentRawContent = '';
         /* 다이얼로그 내 목록 즉시 갱신 + 선택 초기화 */
         setSelected(null);
-        showToast(`🗑 "${selectedFile.name}" 삭제 완료`);
+        showToast(`🗑 "${deletedName}" 삭제 완료`);
         await renderObsTree();
         delBtn.disabled = false;
         delBtn.textContent = '삭제';
