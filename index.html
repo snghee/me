@@ -1,4 +1,4 @@
-<!-- v260327002 -->
+<!-- v260327003 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2336,18 +2336,16 @@ async function showDeleteDialog() {
             body: JSON.stringify({ message:`Delete ${selectedFile.name}`, sha:meta.sha, branch:GITHUB_BRANCH }) }
         );
         if (!r.ok) { const e = await r.json(); throw new Error(e.message||'삭제 실패'); }
-        const deletedName = selectedFile.name; /* setSelected(null) 전에 이름 저장 */
+        const deletedName = selectedFile.name;
         /* 상단 드롭다운 메뉴 즉시 갱신 */
         const obsDD = document.getElementById('dd-2');
         if (obsDD) { obsDD.innerHTML = ''; await populateObsidianMenu(obsDD); }
         _currentFilePath = null; _currentFileSha = null; _currentRawContent = '';
-        /* 다이얼로그 내 목록 즉시 갱신 + 선택 초기화 */
         setSelected(null);
+        overlay.remove();
         showToast(`🗑 "${deletedName}" 삭제 완료`);
-        await renderObsTree();
-        delBtn.disabled = false;
-        delBtn.textContent = '삭제';
-        return; /* overlay 닫지 않고 다이얼로그 유지 */
+        showDashboard();
+        return;
 
       } else {
         // 구글드라이브 삭제 - OAuth 2SV 설정 후 활성화 예정
