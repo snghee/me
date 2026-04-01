@@ -1,4 +1,4 @@
-<!-- v260401006 - Drive 클릭 무반응 버그 수정, 설정 안내 UI 개선 -->
+<!-- v260401007 - gapi 제거, fetch+OAuth 방식, null 방어, Google Docs 지원 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -479,39 +479,34 @@ window.addEventListener('DOMContentLoaded', () => setTimeout(updateNavbarLoginBt
 let driveInit=false, driveLoaded=false, obsLoaded=false;
 let _obsNeedsReload = false; // 삭제/저장 후 옵시디안 메뉴 강제 재로드 플래그
 
-/* ── Google Drive (OAuth 토큰 방식 - API Key 불필요) ── */
-function initGapi() {
-  return new Promise(async (res, rej) => {
-    if (driveInit) { res(); return; }
-    await loadGapi();
-    if (!window.gapi) { rej(new Error('gapi 로드 실패')); return; }
-    gapi.load('client', async () => {
-      try {
-        await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
-        /* OAuth 토큰 적용 */
-        const token = await getDriveToken();
-        gapi.client.setToken({ access_token: token });
-        driveInit = true;
-        res();
-      } catch(e) { rej(e); }
-    });
-  });
+/* ── Google Drive - gapi 불필요, fetch + OAuth 토큰 방식 ── */
+async function initGapi() {
+  /* fetch 방식으로 전환되어 gapi 초기화 불필요 */
+  driveInit = true;
 }
 async function fetchDriveFiles(folderId) {
-  await initGapi();
+  /* OAuth 토큰으로 직접 fetch (gapi 불필요) */
+  const token = await getDriveToken();
+
   async function listFolder(pid, pathPrefix) {
-    const r = await gapi.client.drive.files.list({
-      q: `'${pid}' in parents and trashed=false`,
-      pageSize: 200,
-      fields: 'files(id,name,mimeType)',
-      orderBy: 'folder,name'
-    });
-    const items = r.result.files || [];
+    const url = `https://www.googleapis.com/drive/v3/files?` +
+      `q=${encodeURIComponent("'" + pid + "' in parents and trashed=false")}` +
+      `&pageSize=200&fields=files(id,name,mimeType)&orderBy=folder,name`;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'Drive API 오류 ' + r.status);
+    }
+    const data = await r.json();
+    const items = data.files || [];
     const result = [];
     for (const f of items) {
+      if (!f || !f.id || !f.name) continue; // null 방어
       if (f.mimeType === 'application/vnd.google-apps.folder') {
-        const sub = await listFolder(f.id, pathPrefix ? pathPrefix + '/' + f.name : f.name);
-        result.push(...sub);
+        try {
+          const sub = await listFolder(f.id, pathPrefix ? pathPrefix + '/' + f.name : f.name);
+          result.push(...sub);
+        } catch(_) {} // 하위 폴더 실패해도 계속
       } else {
         result.push({ ...f, name: pathPrefix ? pathPrefix + '/' + f.name : f.name });
       }
@@ -893,16 +888,51 @@ async function populateServiceMenu(dd) {
         item.addEventListener('click', async (e) => {
           e.stopPropagation();
           closeAll();
-          contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+          const displayPath = f.name || '파일';
+          contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
           try {
-            await initGapi();
-            const res = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
-            const text = typeof res.body === 'string' ? res.body : JSON.stringify(res.body, null, 2);
-            const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${escHtml(text)}</pre>`;
+            const tok = await getDriveToken();
+            const fname = (f.displayName || f.name || '').toLowerCase();
+            const mime  = f.mimeType || '';
+
+            /* Google Docs 네이티브 파일 → 바로 열기 링크 제공 */
+            if (mime.startsWith('application/vnd.google-apps.')) {
+              const viewUrl = `https://drive.google.com/file/d/${f.id}/view`;
+              recordDownload(f.name, f.id);
+              contentEl.className = 'content markdown-body';
+              contentEl.innerHTML = `<div class="file-inner">
+                <div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div>
+                <h2 style="margin-bottom:16px">${escHtml(f.displayName || f.name)}</h2>
+                <p style="color:#64748b;margin-bottom:20px;">Google 문서는 Drive에서 직접 열립니다.</p>
+                <a href="${viewUrl}" target="_blank" style="display:inline-block;padding:10px 20px;background:#4285f4;color:white;border-radius:6px;text-decoration:none;font-weight:600;">
+                  📂 Google Drive에서 열기
+                </a>
+              </div>`;
+              return;
+            }
+
+            /* 일반 파일 → fetch로 내용 읽기 */
+            const r = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
+              { headers: { Authorization: 'Bearer ' + tok } }
+            );
+            if (!r.ok) throw new Error('파일 읽기 실패: ' + r.status);
+            const text = await r.text();
+            const html = fname.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap;font-size:13px;">${escHtml(text)}</pre>`;
             recordDownload(f.name, f.id);
             contentEl.className = 'content markdown-body';
-            contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><h2 style="margin-bottom:20px">${escHtml(f.name)}</h2><a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">⬇ 다운로드</a>${html}</div>`;
-          } catch(e) { contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${escHtml(e.message)}</div></div>`; }
+            contentEl.innerHTML = `<div class="file-inner">
+              <div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div>
+              <h2 style="margin-bottom:16px">${escHtml(f.displayName || f.name)}</h2>
+              <a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank"
+                style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">
+                ⬇ 다운로드
+              </a>
+              ${html}
+            </div>`;
+          } catch(err) {
+            contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${escHtml(err.message)}</div></div>`;
+          }
         });
         return item;
       };
