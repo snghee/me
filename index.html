@@ -1,4 +1,4 @@
-<!-- v260327003 -->
+<!-- v260401001 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -583,7 +583,7 @@ function renderMenu() {
                 folBtn.style.paddingLeft = '32px';
                 const folList = document.createElement('div');
                 folList.className = 'drawer-folder-list';
-                folBtn.innerHTML = `<span>📁</span><span>${fol}</span><span style="margin-left:auto">▸</span>`;
+                folBtn.innerHTML = `<span>📁</span><span>${escHtml(fol)}</span><span style="margin-left:auto">▸</span>`;
                 folBtn.addEventListener('click', () => {
                   const open = folList.style.display === 'block';
                   folList.style.display = open ? 'none' : 'block';
@@ -625,6 +625,23 @@ function makeDdItem(text, onClick) {
   return d;
 }
 
+/** 폴더 행 DOM 생성 (folDiv.innerHTML + fol 직접 삽입 대체) */
+function makeFolderRow(folName, cls='dd-folder') {
+  const div = document.createElement('div');
+  div.className = cls;
+  const arrow = document.createElement('span');
+  arrow.className = 'folder-arrow';
+  arrow.style.cssText = 'display:inline-flex;align-items:center;margin-right:6px;';
+  arrow.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>';
+  const icon = document.createTextNode('📁 ');
+  const label = document.createElement('span');
+  label.textContent = folName;
+  div.appendChild(arrow);
+  div.appendChild(icon);
+  div.appendChild(label);
+  return div;
+}
+
 /* ── 구글드라이브 메뉴 ── */
 async function populateServiceMenu(dd) {
   dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
@@ -660,9 +677,7 @@ async function populateServiceMenu(dd) {
       grouped[fol].push({...f, displayName: name});
     });
     Object.keys(grouped).sort().forEach(fol => {
-      const folDiv = document.createElement('div');
-      folDiv.className = 'dd-folder';
-      folDiv.innerHTML = '<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 ' + fol;
+      const folDiv = makeFolderRow(fol);
       const list = document.createElement('div');
       list.className = 'folder-list';
       list.style.display = 'none';
@@ -744,9 +759,7 @@ async function populateObsidianMenu(dd) {
 
     // 하위 폴더 표시
     Object.keys(grouped).sort().filter(fol => fol !== '루트').forEach(fol => {
-      const folDiv = document.createElement('div');
-      folDiv.className = 'dd-folder';
-      folDiv.innerHTML = '<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 '+fol;
+      const folDiv = makeFolderRow(fol);
       const list = document.createElement('div');
       list.className = 'folder-list';
       list.style.display = 'none';
@@ -802,8 +815,43 @@ async function populateExecMenu(dd) {
 
     const runJs = async (filePath, fileName) => {
       closeAll();
+
+      /* ── 실행 전 확인 다이얼로그 ── */
+      const confirmed = await new Promise(resolve => {
+        document.getElementById('exec-confirm-popup')?.remove();
+        const popup = document.createElement('div');
+        popup.id = 'exec-confirm-popup';
+        popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:999999;display:flex;align-items:center;justify-content:center;';
+        popup.innerHTML = `
+          <div style="background:#0f172a;border:1px solid rgba(239,68,68,0.5);border-radius:14px;padding:24px 28px;max-width:420px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.7);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <span style="font-size:22px">⚠️</span>
+              <span style="color:#f87171;font-weight:700;font-size:15px">스크립트 실행 확인</span>
+            </div>
+            <div style="color:#94a3b8;font-size:13px;line-height:1.7;margin-bottom:8px;">
+              GitHub 저장소에서 다음 파일을 내려받아 <b style="color:#fbbf24">브라우저에서 직접 실행</b>합니다.
+            </div>
+            <div style="background:#1e293b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#e2e8f0;word-break:break-all;">
+              ⚡ ${escHtml(fileName)}
+            </div>
+            <div style="color:#64748b;font-size:11px;margin-bottom:20px;line-height:1.6;">
+              저장소가 신뢰할 수 있는 경우에만 실행하세요.<br>
+              악성 코드가 포함된 경우 브라우저 세션이 손상될 수 있습니다.
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+              <button id="exec-cancel-btn" style="padding:8px 20px;border:1px solid #334155;border-radius:8px;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px;">취소</button>
+              <button id="exec-confirm-btn" style="padding:8px 20px;border:none;border-radius:8px;background:#dc2626;color:white;cursor:pointer;font-size:13px;font-weight:600;">실행</button>
+            </div>
+          </div>`;
+        document.body.appendChild(popup);
+        popup.querySelector('#exec-cancel-btn').onclick  = () => { popup.remove(); resolve(false); };
+        popup.querySelector('#exec-confirm-btn').onclick = () => { popup.remove(); resolve(true); };
+        popup.addEventListener('click', e => { if (e.target === popup) { popup.remove(); resolve(false); } });
+      });
+      if (!confirmed) return;
+
       try {
-        showToast(`⚡ ${fileName} 실행 중...`);
+        showToast(`⚡ ${escHtml(fileName)} 실행 중...`);
         const raw = await ghGetRawFile(filePath, true);
         /* console 출력 캡처 */
         const logs = [];
@@ -836,9 +884,7 @@ async function populateExecMenu(dd) {
     }
     /* 하위 폴더 */
     Object.keys(grouped).sort().filter(fol=>fol!=='루트').forEach(fol => {
-      const folDiv = document.createElement('div');
-      folDiv.className = 'dd-folder';
-      folDiv.innerHTML = `<span class="folder-arrow" style="display:inline-flex;align-items:center;margin-right:6px;"><svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg></span>📁 ${fol}`;
+      const folDiv = makeFolderRow(fol);
       const list = document.createElement('div');
       list.className = 'folder-list'; list.style.display = 'none';
       folDiv.addEventListener('click', e => {
@@ -901,7 +947,7 @@ async function downloadObsidianFile(filePath, name) {
     const a = document.createElement('a'); a.href=url; a.download=name+'.md';
     document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
     recordDownload(name, filePath);
-  } catch(e) { alert(e.message); }
+  } catch(e) { showToast('❌ ' + escHtml(e.message), true); }
 }
 
 /* ── 파일 로드 ── */
@@ -1032,11 +1078,11 @@ function renderStats(folder, itemName) {
   dlStats.sort((a,b)=>new Date(b.lastDownload)-new Date(a.lastDownload));
 
   let dlRows = dlStats.length
-    ? dlStats.map(s=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px">${s.fileName}</td><td style="padding:10px 14px;text-align:center;color:#3498db;font-weight:700">${s.count}회</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${s.lastDownload}</td></tr>`).join('')
+    ? dlStats.map(s=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px">${escHtml(s.fileName)}</td><td style="padding:10px 14px;text-align:center;color:#3498db;font-weight:700">${s.count}회</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${escHtml(s.lastDownload)}</td></tr>`).join('')
     : '<tr><td colspan="3" style="padding:20px;text-align:center;color:#94a3b8">기록 없음</td></tr>';
 
   let visitRows = visits.slice(0,20).length
-    ? visits.slice(0,20).map(v=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px;font-size:12px">${v.time}</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${v.ip}</td></tr>`).join('')
+    ? visits.slice(0,20).map(v=>`<tr style="border-bottom:1px solid #f0f4f8"><td style="padding:10px 14px;font-size:12px">${escHtml(v.time||'')}</td><td style="padding:10px 14px;font-size:12px;color:#94a3b8">${escHtml(v.ip||'')}</td></tr>`).join('')
     : '<tr><td colspan="2" style="padding:20px;text-align:center;color:#94a3b8">기록 없음</td></tr>';
 
   contentEl.className='content markdown-body';
@@ -1126,9 +1172,6 @@ function resetAllStats() {
   renderDashboard();
 }
 
-function renderDashboard() {
-  // 숨겨진 stat DOM은 더 이상 사용 안 함 - renderIntroStats()로 대체
-}
 
 function renderIntroStats() {
   const visits = JSON.parse(localStorage.getItem('visitLog')||'[]');
@@ -1137,14 +1180,14 @@ function renderIntroStats() {
 
   const visitRows = visits.slice(0,10).map((v,i)=>
     `<tr><td style="color:#bbb;padding:8px 12px">${i+1}</td>
-     <td style="padding:8px 12px;font-weight:600;color:#1a3a5c">${v.ip||'-'}</td>
-     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${v.time||'-'}</td></tr>`
+     <td style="padding:8px 12px;font-weight:600;color:#1a3a5c">${escHtml(v.ip||'-')}</td>
+     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${escHtml(v.time||'-')}</td></tr>`
   ).join('');
 
   const dlRows = [...dl].sort((a,b)=>b.count-a.count).slice(0,10).map(s=>
-    `<tr><td style="padding:8px 12px">${s.fileName}</td>
+    `<tr><td style="padding:8px 12px">${escHtml(s.fileName)}</td>
      <td style="padding:8px 12px;text-align:center;font-weight:700;color:#3498db">${s.count}회</td>
-     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${s.lastDownload}</td></tr>`
+     <td style="padding:8px 12px;text-align:right;color:#64748b;font-size:12px">${escHtml(s.lastDownload||'')}</td></tr>`
   ).join('');
 
   contentEl.className = 'content markdown-body';
@@ -1827,10 +1870,10 @@ function _attachNodeEvents(ng, n, nodeR, nodeColor, lc, links, linkData, linkEls
   ng.on('mouseover',(e)=>{
       tooltip.style.display='block';
       if(n.isTag){
-        tooltip.innerHTML=`<span style="color:#4ade80;font-weight:700">#${n.name}</span>&nbsp;<span style="opacity:.7">${lc[n.id]||0}개 노트</span>`;
+        tooltip.innerHTML=`<span style="color:#4ade80;font-weight:700">#${escHtml(n.name)}</span>&nbsp;<span style="opacity:.7">${lc[n.id]||0}개 노트</span>`;
       } else {
-        const tagHtml=n.tags&&n.tags.length?n.tags.map(t=>`<span style="display:inline-block;padding:1px 6px;margin:1px 2px;background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.45);border-radius:10px;color:#4ade80;font-size:10px">#${t}</span>`).join(''):'<span style="opacity:.45;font-size:10px">태그 없음</span>';
-        tooltip.innerHTML=`<div style="font-weight:600;margin-bottom:4px;color:rgba(220,235,255,0.95)">${n.name}</div><div>${tagHtml}</div>`;
+        const tagHtml=n.tags&&n.tags.length?n.tags.map(t=>`<span style="display:inline-block;padding:1px 6px;margin:1px 2px;background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.45);border-radius:10px;color:#4ade80;font-size:10px">#${escHtml(t)}</span>`).join(''):'<span style="opacity:.45;font-size:10px">태그 없음</span>';
+        tooltip.innerHTML=`<div style="font-weight:600;margin-bottom:4px;color:rgba(220,235,255,0.95)">${escHtml(n.name)}</div><div>${tagHtml}</div>`;
       }
       const conn=new Set([n.id]);
       links.forEach(l=>{const s=l.source?.id||l.source,t2=l.target?.id||l.target;if(s===n.id)conn.add(t2);if(t2===n.id)conn.add(s);});
@@ -2448,7 +2491,7 @@ async function showSaveDialog(name, folder) {
   confirmBtn.onclick = async () => {
     const selFolder = folSelect.value;
     const filename  = fileInput.value.trim();
-    if (!filename) { alert('파일명을 입력해주세요.'); return; }
+    if (!filename) { showToast('❌ 파일명을 입력해주세요.', true); return; }
 
     const isRoot    = selFolder === '루트' || !selFolder;
     const targetPath = isRoot ? filename : `${selFolder}/${filename}`;
@@ -2514,6 +2557,7 @@ async function showSaveDialog(name, folder) {
 
 
 function showToast(msg, isError=false) {
+  document.querySelectorAll('.save-toast').forEach(t => t.remove());
   const el = document.createElement('div');
   el.className = 'save-toast';
   el.style.background = isError ? '#dc2626' : '#1e293b';
@@ -2550,30 +2594,48 @@ function showTagPopup(tagNode, event, nodeById, links, container) {
     left:${Math.min(event.clientX+12, window.innerWidth-295)}px;
     top:${Math.min(event.clientY+12, window.innerHeight-320)}px;
   `;
-  popup.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="color:#4ade80;font-weight:700;font-size:13px">
-        <span style="margin-right:6px">🏷</span>#${tagNode.name}
-      </div>
-      <button onclick="document.getElementById('tag-popup')?.remove()"
-        style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px;line-height:1;padding:0 2px">✕</button>
-    </div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:8px">${files.length}개 노트에서 사용</div>
-    <div style="display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto">
-      ${files.map(f =>
-        '<div onclick="document.getElementById(\'tag-popup\')?.remove();loadObsidianFileByPath(\'' + f.path + '\',\'' + f.name + '\',\'' + f.folder + '\')"' +
-        ' style="padding:6px 10px;background:rgba(255,255,255,0.04);border-radius:6px;cursor:pointer;' +
-        'font-size:12px;color:#c8d8f0;display:flex;align-items:center;gap:7px;' +
-        'border:1px solid transparent;transition:all .12s"' +
-        ' onmouseover="this.style.background=\'rgba(74,222,128,0.1)\';this.style.borderColor=\'rgba(74,222,128,0.25)\'"' +
-        ' onmouseout="this.style.background=\'rgba(255,255,255,0.04)\';this.style.borderColor=\'transparent\'">' +
-        '<span style="opacity:.55;font-size:11px">📄</span>' +
-        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.name.replace(/\.md$/i,'') + '</span>' +
-        '<span style="margin-left:auto;font-size:10px;color:#475569;white-space:nowrap">' + (f.folder!=='루트'?f.folder:'') + '</span>' +
-        '</div>'
-      ).join('')}
-    </div>
-  `;
+  /* 헤더 */
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  const tagLabel = document.createElement('div');
+  tagLabel.style.cssText = 'color:#4ade80;font-weight:700;font-size:13px';
+  tagLabel.textContent = '🏷 #' + tagNode.name;
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:none;border:none;color:#64748b;cursor:pointer;font-size:16px;line-height:1;padding:0 2px';
+  closeBtn.addEventListener('click', () => popup.remove());
+  header.appendChild(tagLabel);
+  header.appendChild(closeBtn);
+  popup.appendChild(header);
+
+  /* 사용 수 */
+  const countEl = document.createElement('div');
+  countEl.style.cssText = 'font-size:11px;color:#64748b;margin-bottom:8px';
+  countEl.textContent = files.length + '개 노트에서 사용';
+  popup.appendChild(countEl);
+
+  /* 파일 목록 — DOM으로 구성해 XSS 방지 */
+  const listEl = document.createElement('div');
+  listEl.style.cssText = 'display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto';
+  files.forEach(f => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 10px;background:rgba(255,255,255,0.04);border-radius:6px;cursor:pointer;font-size:12px;color:#c8d8f0;display:flex;align-items:center;gap:7px;border:1px solid transparent;transition:all .12s';
+    row.addEventListener('mouseover', () => { row.style.background='rgba(74,222,128,0.1)'; row.style.borderColor='rgba(74,222,128,0.25)'; });
+    row.addEventListener('mouseout',  () => { row.style.background='rgba(255,255,255,0.04)'; row.style.borderColor='transparent'; });
+    row.addEventListener('click', () => { popup.remove(); loadObsidianFileByPath(f.path, f.name, f.folder); });
+    const icon = document.createElement('span');
+    icon.style.cssText = 'opacity:.55;font-size:11px';
+    icon.textContent = '📄';
+    const nameSpan = document.createElement('span');
+    nameSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    nameSpan.textContent = f.name.replace(/\.md$/i, '');
+    const folderSpan = document.createElement('span');
+    folderSpan.style.cssText = 'margin-left:auto;font-size:10px;color:#475569;white-space:nowrap';
+    folderSpan.textContent = f.folder !== '루트' ? f.folder : '';
+    row.appendChild(icon); row.appendChild(nameSpan); row.appendChild(folderSpan);
+    listEl.appendChild(row);
+  });
+  popup.appendChild(listEl);
 
   document.body.appendChild(popup);
 
