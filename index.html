@@ -426,10 +426,28 @@ function initGapi() {
     });
   });
 }
-async function fetchDriveFiles(id) {
+async function fetchDriveFiles(folderId) {
   await initGapi();
-  const r = await gapi.client.drive.files.list({ q:`'${id}' in parents and trashed=false`, pageSize:100, fields:'files(id,name,mimeType)' });
-  return r.result.files||[];
+  async function listFolder(pid, pathPrefix) {
+    const r = await gapi.client.drive.files.list({
+      q: `'${pid}' in parents and trashed=false`,
+      pageSize: 200,
+      fields: 'files(id,name,mimeType)',
+      orderBy: 'folder,name'
+    });
+    const items = r.result.files || [];
+    const result = [];
+    for (const f of items) {
+      if (f.mimeType === 'application/vnd.google-apps.folder') {
+        const sub = await listFolder(f.id, pathPrefix ? pathPrefix + '/' + f.name : f.name);
+        result.push(...sub);
+      } else {
+        result.push({ ...f, name: pathPrefix ? pathPrefix + '/' + f.name : f.name });
+      }
+    }
+    return result;
+  }
+  return listFolder(folderId, '');
 }
 
 /* ── 드롭다운 관리 (테스트 파일과 동일한 패턴) ── */
