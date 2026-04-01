@@ -1,4 +1,4 @@
-<!-- v260401004 - OAuth 직접 로그인, API Key 제거, 네브바 로그인 버튼 추가 -->
+<!-- v260401006 - Drive 클릭 무반응 버그 수정, 설정 안내 UI 개선 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -592,7 +592,12 @@ function renderMenu() {
           capturedDd.classList.add('open');
           document.getElementById('btn-' + capturedId).classList.add('open');
           openId = capturedId;
-          if (capturedFolder === '구글드라이브' && capturedDd.childElementCount === 0) await populateServiceMenu(capturedDd);
+          if (capturedFolder === '구글드라이브') {
+            /* 토큰 만료/미로그인 이거나 아직 비어있으면 항상 재로드 */
+            const needReload = capturedDd.childElementCount === 0
+              || !_driveToken || Date.now() >= _driveTokenExp;
+            if (needReload) { capturedDd.innerHTML = ''; await populateServiceMenu(capturedDd); }
+          }
           if (capturedFolder === '옵시디안'     && (capturedDd.childElementCount === 0 || _obsNeedsReload)) { _obsNeedsReload = false; await populateObsidianMenu(capturedDd); }
           if (capturedFolder === '실행'         && capturedDd.childElementCount === 0) await populateExecMenu(capturedDd);
         }
@@ -741,9 +746,24 @@ function makeFolderRow(folName, cls='dd-folder') {
 
 /* ── 구글드라이브 메뉴 (전면 개편) ── */
 async function populateServiceMenu(dd) {
-  /* Folder ID 미설정 시 관리자 설정 UI 표시 */
+  /* Folder ID / Client ID 미설정 시 → dd 안에 안내 + 설정 팝업 자동 오픈 */
   if (!getServiceFolderId() || !getClientId()) {
-    showGoogleSettingsDialog(dd);
+    dd.innerHTML = '';
+    const setupBox = document.createElement('div');
+    setupBox.style.cssText = 'padding:20px 16px;text-align:center;';
+    setupBox.innerHTML = `
+      <div style="font-size:28px;margin-bottom:8px;">⚙️</div>
+      <div style="color:white;font-size:13px;font-weight:600;margin-bottom:4px;">초기 설정이 필요합니다</div>
+      <div style="color:rgba(255,255,255,0.45);font-size:11px;margin-bottom:14px;">Client ID와 Drive 폴더 ID를<br>1회 입력하면 이후 로그인만 하면 됩니다.</div>
+    `;
+    const setupBtn = document.createElement('button');
+    setupBtn.textContent = '⚙️ 설정 열기';
+    setupBtn.style.cssText = 'width:100%;padding:9px;border:1px solid rgba(52,152,219,0.5);border-radius:8px;background:rgba(52,152,219,0.15);color:#64b5f6;font-size:13px;font-weight:600;cursor:pointer;';
+    setupBtn.onclick = (e) => { e.stopPropagation(); showGoogleSettingsDialog(dd); };
+    setupBox.appendChild(setupBtn);
+    dd.appendChild(setupBox);
+    /* 자동으로 설정 팝업도 오픈 */
+    setTimeout(() => showGoogleSettingsDialog(dd), 100);
     return;
   }
   /* 로그인 안 된 경우 → 로그인 유도 */
@@ -763,6 +783,7 @@ async function populateServiceMenu(dd) {
       e.stopPropagation();
       try {
         await getDriveToken();
+        driveInit = false; // 새 토큰으로 gapi 재초기화
         dd.innerHTML = '';
         await populateServiceMenu(dd);
       } catch(err) { showToast('❌ ' + err.message, true); }
