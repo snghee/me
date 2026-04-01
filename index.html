@@ -1,4 +1,4 @@
-<!-- v260401002 -->
+<!-- v260401003 - Drive 메뉴 전면개편, 설정 localStorage 영구저장, UI 개선 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -356,17 +356,25 @@ function getDriveToken() {
     client.requestAccessToken({ prompt: _driveToken ? '' : 'consent' });
   });
 }
-/* ── Google 설정 (sessionStorage 보관 — 설정 UI에서 입력) ── */
-function getGoogleApiKey()    { return sessionStorage.getItem('g_api_key')    || null; }
-function getClientId()        { return sessionStorage.getItem('g_client_id')  || null; }
-function getServiceFolderId() { return sessionStorage.getItem('g_folder_id')  || null; }
+/* ── Google 설정 (localStorage 보관 — 브라우저 재시작 후에도 유지) ── */
+function getGoogleApiKey()    { return localStorage.getItem('g_api_key')    || null; }
+function getClientId()        { return localStorage.getItem('g_client_id')  || null; }
+function getServiceFolderId() { return localStorage.getItem('g_folder_id')  || null; }
 
 /** 설정 저장 (설정 UI에서 호출) */
 function saveGoogleSettings(apiKey, clientId, folderId) {
-  if (apiKey)   sessionStorage.setItem('g_api_key',   apiKey.trim());
-  if (clientId) sessionStorage.setItem('g_client_id', clientId.trim());
-  if (folderId) sessionStorage.setItem('g_folder_id', folderId.trim());
+  if (apiKey)   localStorage.setItem('g_api_key',   apiKey.trim());
+  if (clientId) localStorage.setItem('g_client_id', clientId.trim());
+  if (folderId) localStorage.setItem('g_folder_id', folderId.trim());
   driveInit = false; // initGapi 재시도를 위해 플래그 리셋
+}
+
+/** 설정 초기화 */
+function clearGoogleSettings() {
+  localStorage.removeItem('g_api_key');
+  localStorage.removeItem('g_client_id');
+  localStorage.removeItem('g_folder_id');
+  _driveToken = null; _driveTokenExp = 0; driveInit = false;
 }
 
 // GitHub 설정 (Public 저장소 - 토큰 불필요)
@@ -642,89 +650,219 @@ function makeFolderRow(folName, cls='dd-folder') {
   return div;
 }
 
-/* ── 구글드라이브 메뉴 ── */
+/* ── 구글드라이브 메뉴 (전면 개편) ── */
 async function populateServiceMenu(dd) {
   /* 설정값 미입력 시 설정 UI 표시 */
   if (!getGoogleApiKey() || !getClientId() || !getServiceFolderId()) {
     showGoogleSettingsDialog(dd);
     return;
   }
-  dd.innerHTML = '<div class="dd-item">⏳ 불러오는 중...</div>';
+
+  /* 로딩 상태 */
+  dd.innerHTML = '';
+  const loadingEl = document.createElement('div');
+  loadingEl.style.cssText = 'padding:20px;text-align:center;';
+  loadingEl.innerHTML = '<div style="border:3px solid rgba(255,255,255,0.1);border-top:3px solid #3498db;border-radius:50%;width:28px;height:28px;animation:spin 1s linear infinite;margin:0 auto 10px;"></div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Drive 불러오는 중...</div>';
+  dd.appendChild(loadingEl);
+
   try {
     const files = await fetchDriveFiles(getServiceFolderId());
     dd.innerHTML = '';
-    if (!files.length) { dd.innerHTML='<div class="dd-item">(파일 없음)</div>'; return; }
 
-    // 전체 확장/축소 컨트롤바
-    const ctrlBar = document.createElement('div');
-    ctrlBar.style.cssText = 'display:flex;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.08);';
-    const btnExpandG = document.createElement('button');
-    btnExpandG.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
-    btnExpandG.title = '전체 펼치기';
-    btnExpandG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
-    const btnCollapseG = document.createElement('button');
-    btnCollapseG.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>';
-    btnCollapseG.title = '전체 접기';
-    btnCollapseG.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:4px;cursor:pointer;';
-    btnExpandG.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='block'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>'); });
-    btnCollapseG.addEventListener('click', (e) => { e.stopPropagation(); dd.querySelectorAll('.folder-list').forEach(l=>l.style.display='none'); dd.querySelectorAll('.folder-arrow').forEach(a=>a.innerHTML='<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>'); });
-    ctrlBar.appendChild(btnExpandG);
-    ctrlBar.appendChild(btnCollapseG);
-    dd.appendChild(ctrlBar);
+    /* ── 헤더 (계정 정보 + 파일 수) ── */
+    const driveHeader = document.createElement('div');
+    driveHeader.style.cssText = 'padding:10px 14px 8px;background:rgba(52,152,219,0.1);border-bottom:1px solid rgba(52,152,219,0.2);';
+    driveHeader.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:16px;">☁️</span>
+          <span style="font-size:12px;font-weight:700;color:#64b5f6;">Google Drive</span>
+        </div>
+        <span style="font-size:11px;background:rgba(52,152,219,0.25);color:#90caf9;padding:2px 8px;border-radius:10px;">${files.length}개 항목</span>
+      </div>`;
+    dd.appendChild(driveHeader);
 
-    // 파일을 폴더별로 그룹핑
-    const grouped = {};
-    files.forEach(f => {
-      const parts = f.name.split('/');
-      const fol = parts.length > 1 ? parts[0] : '파일';
-      const name = parts[parts.length - 1];
-      if (!grouped[fol]) grouped[fol] = [];
-      grouped[fol].push({...f, displayName: name});
-    });
-    Object.keys(grouped).sort().forEach(fol => {
-      const folDiv = makeFolderRow(fol);
-      const list = document.createElement('div');
-      list.className = 'folder-list';
-      list.style.display = 'none';
-      folDiv.addEventListener('click', (e) => {
+    if (!files.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:24px;text-align:center;color:rgba(255,255,255,0.3);font-size:13px;';
+      empty.innerHTML = '<div style="font-size:28px;margin-bottom:8px;">📂</div>폴더가 비어 있습니다.';
+      dd.appendChild(empty);
+    } else {
+      /* ── 검색창 ── */
+      const searchWrap = document.createElement('div');
+      searchWrap.style.cssText = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);position:sticky;top:0;background:#2c3e50;z-index:10;';
+      const searchInp = document.createElement('input');
+      searchInp.type = 'text';
+      searchInp.placeholder = '🔍 파일 검색...';
+      searchInp.style.cssText = 'width:100%;padding:7px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;background:rgba(0,0,0,0.3);color:white;font-size:12px;outline:none;box-sizing:border-box;';
+      searchInp.onfocus = () => searchInp.style.borderColor = '#3498db';
+      searchInp.onblur  = () => searchInp.style.borderColor = 'rgba(255,255,255,0.12)';
+      searchWrap.appendChild(searchInp);
+      dd.appendChild(searchWrap);
+
+      /* ── 전체 확장/축소 컨트롤바 ── */
+      const ctrlBar = document.createElement('div');
+      ctrlBar.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.06);';
+
+      const mkCtrlBtn = (icon, title, onClick) => {
+        const btn = document.createElement('button');
+        btn.innerHTML = icon; btn.title = title;
+        btn.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;gap:4px;';
+        btn.onmouseover = () => btn.style.background = 'rgba(255,255,255,0.15)';
+        btn.onmouseout  = () => btn.style.background = 'rgba(255,255,255,0.08)';
+        btn.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+        return btn;
+      };
+
+      const btnExpand   = mkCtrlBtn('▼ 모두 펼치기', '모두 펼치기', () => {
+        dd.querySelectorAll('.folder-list').forEach(l => l.style.display = 'block');
+        dd.querySelectorAll('.folder-arrow').forEach(a => a.textContent = '▾');
+      });
+      const btnCollapse = mkCtrlBtn('▶ 모두 접기', '모두 접기', () => {
+        dd.querySelectorAll('.folder-list').forEach(l => l.style.display = 'none');
+        dd.querySelectorAll('.folder-arrow').forEach(a => a.textContent = '▸');
+      });
+
+      ctrlBar.appendChild(btnExpand);
+      ctrlBar.appendChild(btnCollapse);
+      dd.appendChild(ctrlBar);
+
+      /* ── 파일 아이콘 결정 ── */
+      const getFileIcon = (name, mime) => {
+        if (mime === 'application/vnd.google-apps.folder') return '📁';
+        if (name.endsWith('.md'))   return '📝';
+        if (name.endsWith('.pdf'))  return '📕';
+        if (name.endsWith('.xlsx') || name.endsWith('.csv')) return '📊';
+        if (name.endsWith('.docx') || name.endsWith('.doc')) return '📄';
+        if (name.endsWith('.pptx')) return '📊';
+        if (name.endsWith('.jpg') || name.endsWith('.png') || name.endsWith('.gif')) return '🖼️';
+        if (name.endsWith('.js') || name.endsWith('.py') || name.endsWith('.html')) return '💻';
+        if (name.endsWith('.zip') || name.endsWith('.tar')) return '🗜️';
+        return '📄';
+      };
+
+      /* ── 파일 목록 컨테이너 ── */
+      const listContainer = document.createElement('div');
+      listContainer.id = 'drive-list-container';
+
+      /* ── 파일 항목 생성 함수 ── */
+      const makeFileItem = (f) => {
+        const item = document.createElement('div');
+        item.className = 'dd-item drive-file-item';
+        item.dataset.name = f.displayName || f.name;
+        item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 14px 9px 28px;';
+        item.innerHTML = `
+          <span style="flex-shrink:0;font-size:14px;">${getFileIcon(f.displayName||f.name, f.mimeType)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">${escHtml(f.displayName||f.name)}</span>
+          <span style="flex-shrink:0;font-size:10px;opacity:0.35;" title="다운로드">⬇</span>`;
+        item.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          closeAll();
+          contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+          try {
+            await initGapi();
+            const res = await gapi.client.drive.files.get({ fileId: f.id, alt: 'media' });
+            const text = typeof res.body === 'string' ? res.body : JSON.stringify(res.body, null, 2);
+            const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${escHtml(text)}</pre>`;
+            recordDownload(f.name, f.id);
+            contentEl.className = 'content markdown-body';
+            contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><h2 style="margin-bottom:20px">${escHtml(f.name)}</h2><a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">⬇ 다운로드</a>${html}</div>`;
+          } catch(e) { contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${escHtml(e.message)}</div></div>`; }
+        });
+        return item;
+      };
+
+      /* ── 폴더별 그룹핑 ── */
+      const grouped = {};
+      files.forEach(f => {
+        const parts = f.name.split('/');
+        const fol = parts.length > 1 ? parts[0] : '📄 루트 파일';
+        const displayName = parts[parts.length - 1];
+        if (!grouped[fol]) grouped[fol] = [];
+        grouped[fol].push({ ...f, displayName });
+      });
+
+      /* ── 루트 파일 먼저 (폴더 없이) ── */
+      const rootFiles = grouped['📄 루트 파일'] || [];
+      rootFiles.forEach(f => {
+        const item = makeFileItem(f);
+        item.style.paddingLeft = '14px';
+        listContainer.appendChild(item);
+      });
+
+      /* ── 폴더 그룹 ── */
+      Object.keys(grouped).sort().filter(fol => fol !== '📄 루트 파일').forEach(fol => {
+        const folDiv = document.createElement('div');
+        folDiv.className = 'dd-folder drive-folder-row';
+        folDiv.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:pointer;user-select:none;';
+        const arrow = document.createElement('span');
+        arrow.className = 'folder-arrow';
+        arrow.textContent = '▸';
+        arrow.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);flex-shrink:0;';
+        const folIcon = document.createElement('span');
+        folIcon.textContent = '📁';
+        folIcon.style.flexShrink = '0';
+        const folLabel = document.createElement('span');
+        folLabel.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;';
+        folLabel.textContent = fol;
+        const folCount = document.createElement('span');
+        folCount.textContent = grouped[fol].length;
+        folCount.style.cssText = 'font-size:10px;background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:8px;color:rgba(255,255,255,0.45);flex-shrink:0;';
+        folDiv.appendChild(arrow); folDiv.appendChild(folIcon); folDiv.appendChild(folLabel); folDiv.appendChild(folCount);
+
+        const list = document.createElement('div');
+        list.className = 'folder-list';
+        list.style.display = 'none';
+
+        folDiv.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = list.style.display !== 'none';
+          list.style.display = isOpen ? 'none' : 'block';
+          arrow.textContent = isOpen ? '▸' : '▾';
+          folDiv.style.background = isOpen ? '' : 'rgba(52,152,219,0.08)';
+        });
+
+        grouped[fol].forEach(f => list.appendChild(makeFileItem(f)));
+        listContainer.appendChild(folDiv);
+        listContainer.appendChild(list);
+      });
+
+      dd.appendChild(listContainer);
+
+      /* ── 검색 기능 연결 ── */
+      searchInp.addEventListener('input', (e) => {
         e.stopPropagation();
-        const isOpen = list.style.display !== 'none';
-        list.style.display = isOpen ? 'none' : 'block';
-        const arrow = folDiv.querySelector('.folder-arrow');
-        if (arrow) arrow.innerHTML = isOpen ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l5 4-5 4V4z"/></svg>' : '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 5 4-5H4z"/></svg>';
+        const q = searchInp.value.trim().toLowerCase();
+        if (!q) {
+          dd.querySelectorAll('.drive-file-item, .drive-folder-row, .folder-list').forEach(el => el.style.display = '');
+          dd.querySelectorAll('.folder-list').forEach(l => l.style.display = 'none');
+          return;
+        }
+        dd.querySelectorAll('.drive-folder-row').forEach(row => row.style.display = 'none');
+        dd.querySelectorAll('.folder-list').forEach(l => l.style.display = 'block');
+        dd.querySelectorAll('.drive-file-item').forEach(item => {
+          const match = item.dataset.name?.toLowerCase().includes(q);
+          item.style.display = match ? '' : 'none';
+        });
       });
-      dd.appendChild(folDiv);
-      dd.appendChild(list);
-      grouped[fol].forEach(f => {
-      const item = makeDdItem('📄 '+f.name, async () => {
-        closeAll();
-        contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
-        try {
-          await initGapi();
-          const res = await gapi.client.drive.files.get({ fileId:f.id, alt:'media' });
-          const text = typeof res.body==='string' ? res.body : JSON.stringify(res.body,null,2);
-          const html = f.name.endsWith('.md') ? mdToHtml(text) : `<pre style="white-space:pre-wrap">${escHtml(text)}</pre>`;
-          recordDownload(f.name, f.id);
-          contentEl.className='content markdown-body';
-          contentEl.innerHTML=`<div class="file-inner"><div class="breadcrumb">구글드라이브 > ${escHtml(f.name)}</div><h2 style="margin-bottom:20px">${escHtml(f.name)}</h2><a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank" style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">다운로드</a>${html}</div>`;
-        } catch(e) { contentEl.innerHTML=`<div class="file-inner"><div class="err">❌ ${escHtml(e.message)}</div></div>`; }
-      });
-        item.style.paddingLeft='28px';
-        list.appendChild(item);
-      });
-    });
+      searchInp.addEventListener('click', e => e.stopPropagation());
+      searchInp.addEventListener('keydown', e => e.stopPropagation());
+    }
 
-    /* 하단에 설정 변경 링크 */
-    const settingsItem = makeDdItem('⚙️ Google 설정 변경', () => { closeAll(); showGoogleSettingsDialog(null); });
-    settingsItem.style.cssText += ';color:rgba(255,255,255,.4);font-size:12px;border-top:1px solid rgba(255,255,255,.08);';
+    /* ── 하단 설정 변경 ── */
+    const settingsItem = document.createElement('div');
+    settingsItem.className = 'dd-item';
+    settingsItem.style.cssText = 'color:rgba(255,255,255,0.35);font-size:11px;border-top:1px solid rgba(255,255,255,0.06);padding:10px 14px;display:flex;align-items:center;gap:6px;';
+    settingsItem.innerHTML = '⚙️ Google 연동 설정 변경';
+    settingsItem.addEventListener('click', () => { closeAll(); showGoogleSettingsDialog(null); });
     dd.appendChild(settingsItem);
 
   } catch(e) {
     dd.innerHTML = '';
-    const errItem = document.createElement('div');
-    errItem.style.cssText = 'padding:12px 18px;color:#e74c3c;font-size:13px;';
-    errItem.textContent = '❌ Drive 오류: ' + e.message;
-    dd.appendChild(errItem);
+    const errEl = document.createElement('div');
+    errEl.style.cssText = 'padding:16px 14px;';
+    errEl.innerHTML = `<div style="color:#f87171;font-size:13px;margin-bottom:10px;">❌ Drive 연결 오류</div><div style="color:rgba(255,255,255,0.4);font-size:11px;background:rgba(0,0,0,0.2);padding:8px 10px;border-radius:6px;word-break:break-all;">${escHtml(e.message)}</div>`;
+    dd.appendChild(errEl);
     const retryItem = makeDdItem('⚙️ Google 설정 변경', () => { closeAll(); showGoogleSettingsDialog(dd); });
     retryItem.style.cssText += ';color:#64b5f6;font-size:12px;';
     dd.appendChild(retryItem);
@@ -2576,70 +2714,132 @@ async function showSaveDialog(name, folder) {
 }
 
 
-/* ── Google 설정 다이얼로그 ── */
+/* ── Google 설정 다이얼로그 (전면 개편) ── */
 function showGoogleSettingsDialog(ddToReload) {
   document.getElementById('google-settings-overlay')?.remove();
 
+  const hasSaved = !!(getGoogleApiKey() && getClientId() && getServiceFolderId());
+
   const overlay = document.createElement('div');
   overlay.id = 'google-settings-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999999;display:flex;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
 
   const box = document.createElement('div');
-  box.style.cssText = 'background:white;border-radius:14px;width:480px;max-width:92vw;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.4);';
+  box.style.cssText = 'background:#0f172a;border:1px solid rgba(52,152,219,0.4);border-radius:16px;width:520px;max-width:94vw;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.7);';
 
-  /* 제목 */
-  const titleRow = document.createElement('div');
-  titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
-  const title = document.createElement('h3');
-  title.textContent = '⚙️ Google 연동 설정';
-  title.style.cssText = 'font-size:17px;color:#1e293b;margin:0;';
+  /* ── 헤더 ── */
+  const header = document.createElement('div');
+  header.style.cssText = 'background:linear-gradient(135deg,#1e3a5f,#16213e);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(52,152,219,0.2);';
+  const headerLeft = document.createElement('div');
+  headerLeft.innerHTML = '<div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">🔗</span><div><div style="color:white;font-size:16px;font-weight:700">Google Drive 연동 설정</div><div style="color:#64b5f6;font-size:11px;margin-top:2px">설정은 브라우저에 영구 저장됩니다</div></div></div>';
   const xBtn = document.createElement('button');
-  xBtn.textContent = '✕';
-  xBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;';
+  xBtn.innerHTML = '✕';
+  xBtn.style.cssText = 'background:rgba(255,255,255,0.1);border:none;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;padding:6px 10px;border-radius:6px;line-height:1;';
+  xBtn.onmouseover = () => xBtn.style.background = 'rgba(255,255,255,0.2)';
+  xBtn.onmouseout  = () => xBtn.style.background = 'rgba(255,255,255,0.1)';
   xBtn.onclick = () => overlay.remove();
-  titleRow.appendChild(title); titleRow.appendChild(xBtn);
-  box.appendChild(titleRow);
+  header.appendChild(headerLeft); header.appendChild(xBtn);
+  box.appendChild(header);
 
-  const desc = document.createElement('p');
-  desc.textContent = '값은 이 세션에만 유지되며 브라우저 종료 시 자동 삭제됩니다.';
-  desc.style.cssText = 'font-size:12px;color:#94a3b8;margin:0 0 20px;';
-  box.appendChild(desc);
+  /* ── 상태 배지 ── */
+  if (hasSaved) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'background:rgba(34,197,94,0.1);border-bottom:1px solid rgba(34,197,94,0.2);padding:10px 24px;display:flex;align-items:center;gap:8px;';
+    badge.innerHTML = '<span style="color:#4ade80;font-size:13px">✅ 연동 설정이 저장되어 있습니다. 변경하려면 아래에서 수정하세요.</span>';
+    box.appendChild(badge);
+  }
 
-  const mkField = (label, key, placeholder) => {
+  /* ── 바디 ── */
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:24px;';
+
+  const mkField = (label, key, placeholder, hint) => {
     const wrap = document.createElement('div');
-    wrap.style.marginBottom = '14px';
+    wrap.style.marginBottom = '18px';
+    const topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
     const lbl = document.createElement('label');
     lbl.textContent = label;
-    lbl.style.cssText = 'display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:5px;';
+    lbl.style.cssText = 'font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.5px;text-transform:uppercase;';
+    topRow.appendChild(lbl);
+    if (hint) {
+      const hintEl = document.createElement('span');
+      hintEl.textContent = hint;
+      hintEl.style.cssText = 'font-size:10px;color:#475569;';
+      topRow.appendChild(hintEl);
+    }
+    const inpWrap = document.createElement('div');
+    inpWrap.style.cssText = 'position:relative;';
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.placeholder = placeholder;
-    inp.value = sessionStorage.getItem(key) || '';
+    inp.value = localStorage.getItem(key) || '';
     inp.dataset.key = key;
-    inp.style.cssText = 'width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;font-family:monospace;';
+    inp.autocomplete = 'off';
+    inp.style.cssText = 'width:100%;padding:11px 40px 11px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;font-family:monospace;background:#1e293b;color:#e2e8f0;transition:border-color .2s;';
     inp.onfocus = () => inp.style.borderColor = '#3498db';
-    inp.onblur  = () => inp.style.borderColor = '#e2e8f0';
-    wrap.appendChild(lbl); wrap.appendChild(inp);
-    box.appendChild(wrap);
+    inp.onblur  = () => inp.style.borderColor = inp.value ? 'rgba(52,152,219,0.4)' : 'rgba(255,255,255,0.1)';
+    if (inp.value) inp.style.borderColor = 'rgba(52,152,219,0.4)';
+    /* 복사 버튼 */
+    const copyBtn = document.createElement('button');
+    copyBtn.innerHTML = '📋';
+    copyBtn.title = '복사';
+    copyBtn.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;opacity:0.5;';
+    copyBtn.onmouseover = () => copyBtn.style.opacity = '1';
+    copyBtn.onmouseout  = () => copyBtn.style.opacity = '0.5';
+    copyBtn.onclick = (e) => { e.preventDefault(); navigator.clipboard?.writeText(inp.value); showToast('📋 복사됨'); };
+    inpWrap.appendChild(inp); inpWrap.appendChild(copyBtn);
+    wrap.appendChild(topRow); wrap.appendChild(inpWrap);
+    body.appendChild(wrap);
     return inp;
   };
 
-  const inpApiKey   = mkField('Google API Key',          'g_api_key',   'AIzaSy...');
-  const inpClientId = mkField('OAuth Client ID',          'g_client_id', '000000000000-xxxx.apps.googleusercontent.com');
-  const inpFolderId = mkField('Drive 서비스 폴더 ID',     'g_folder_id', '1AbCdEfGhIjKlMnOpQrStUvWxYz');
+  const inpApiKey   = mkField('Google API Key',        'g_api_key',   'AIzaSy...', 'Google Cloud Console');
+  const inpClientId = mkField('OAuth 2.0 Client ID',   'g_client_id', '000000000000-xxxx.apps.googleusercontent.com', 'OAuth 동의 화면');
+  const inpFolderId = mkField('Drive 서비스 폴더 ID',   'g_folder_id', '1AbCdEfGhIjKlMnOpQrStUvWxYz', '공유 폴더 URL에서 복사');
 
-  /* 버튼 */
+  /* ── 도움말 박스 ── */
+  const helpBox = document.createElement('div');
+  helpBox.style.cssText = 'background:#1e293b;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:20px;';
+  helpBox.innerHTML = '<div style="font-size:11px;color:#64748b;line-height:1.8;">' +
+    '<b style="color:#94a3b8">📌 폴더 ID 확인 방법:</b><br>' +
+    'Google Drive에서 폴더 열기 → 주소창의 <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;color:#93c5fd">folders/<b style="color:#60a5fa">여기가 ID</b></code> 부분을 복사하세요.' +
+    '</div>';
+  body.appendChild(helpBox);
+
+  box.appendChild(body);
+
+  /* ── 푸터 ── */
   const footer = document.createElement('div');
-  footer.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;margin-top:4px;';
+  footer.style.cssText = 'display:flex;gap:10px;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.06);background:#0a1120;';
+
+  /* 초기화 버튼 */
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = '🗑 설정 초기화';
+  clearBtn.style.cssText = 'padding:9px 16px;border:1px solid rgba(239,68,68,0.3);border-radius:8px;background:transparent;color:#f87171;cursor:pointer;font-size:13px;';
+  clearBtn.onmouseover = () => clearBtn.style.background = 'rgba(239,68,68,0.1)';
+  clearBtn.onmouseout  = () => clearBtn.style.background = 'transparent';
+  clearBtn.onclick = () => {
+    if (confirm('Google 연동 설정을 모두 초기화하시겠습니까?')) {
+      clearGoogleSettings();
+      overlay.remove();
+      showToast('🗑 설정이 초기화되었습니다.');
+    }
+  };
+
+  const rightBtns = document.createElement('div');
+  rightBtns.style.cssText = 'display:flex;gap:10px;';
 
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = '취소';
-  cancelBtn.style.cssText = 'padding:9px 20px;border:1px solid #e2e8f0;border-radius:8px;background:white;cursor:pointer;font-size:14px;';
+  cancelBtn.style.cssText = 'padding:10px 20px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:transparent;color:#94a3b8;cursor:pointer;font-size:14px;';
   cancelBtn.onclick = () => overlay.remove();
 
   const saveBtn = document.createElement('button');
-  saveBtn.textContent = '저장 후 연결';
-  saveBtn.style.cssText = 'padding:9px 22px;border:none;border-radius:8px;background:#3498db;color:white;cursor:pointer;font-size:14px;font-weight:600;';
+  saveBtn.innerHTML = '💾 저장 후 연결';
+  saveBtn.style.cssText = 'padding:10px 22px;border:none;border-radius:8px;background:linear-gradient(135deg,#3498db,#2980b9);color:white;cursor:pointer;font-size:14px;font-weight:700;box-shadow:0 4px 14px rgba(52,152,219,0.4);';
+  saveBtn.onmouseover = () => saveBtn.style.opacity = '0.9';
+  saveBtn.onmouseout  = () => saveBtn.style.opacity = '1';
   saveBtn.onclick = async () => {
     const apiKey   = inpApiKey.value.trim();
     const clientId = inpClientId.value.trim();
@@ -2649,14 +2849,15 @@ function showGoogleSettingsDialog(ddToReload) {
     }
     saveGoogleSettings(apiKey, clientId, folderId);
     overlay.remove();
-    /* 드롭다운이 열려 있으면 재로드 */
+    showToast('✅ Google Drive 연동 설정이 저장되었습니다.');
     if (ddToReload) {
       ddToReload.innerHTML = '';
       await populateServiceMenu(ddToReload);
     }
   };
 
-  footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+  rightBtns.appendChild(cancelBtn); rightBtns.appendChild(saveBtn);
+  footer.appendChild(clearBtn); footer.appendChild(rightBtns);
   box.appendChild(footer);
   overlay.appendChild(box);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
