@@ -1,4 +1,4 @@
-<!-- v260401003 - Drive 메뉴 전면개편, 설정 localStorage 영구저장, UI 개선 -->
+<!-- v260401004 - OAuth 직접 로그인, API Key 제거, 네브바 로그인 버튼 추가 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -283,6 +283,9 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 <nav class="navbar" id="navbar">
   <div class="navbar-brand" onclick="showDashboard()" style="cursor:pointer">🏦 SBJ DNX</div>
   <div class="navbar-menu" id="navbar-menu"></div>
+  <button id="google-login-btn" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;padding:7px 14px;border-radius:20px;cursor:pointer;margin-left:12px;white-space:nowrap;font-size:13px;transition:background .2s;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+    <span style="font-size:13px;">🔑 Google 로그인</span>
+  </button>
   <button class="hamburger" onclick="toggleDrawer()">☰</button>
 </nav>
 
@@ -313,18 +316,49 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 </div><!-- main-layout -->
 
 <script>
-/* gapi는 나중에 비동기 로드 - 없어도 메뉴는 동작 */
-function loadGapi() {
-  return new Promise((res) => {
-    if (window.gapi) { res(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://apis.google.com/js/api.js';
-    s.onload = res; s.onerror = res;
-    document.head.appendChild(s);
-  });
+/* ════════════════════════════════════════════════════════
+   ★ Google OAuth 직접 로그인 방식
+   - API Key / Client ID / Folder ID 를 HTML에 내장
+   - 사용자는 "Google 로그인" 버튼만 클릭하면 됩니다
+   - Client ID와 Folder ID는 아래 GOOGLE_CONFIG에서 관리자가 설정
+   ════════════════════════════════════════════════════════ */
+
+const GOOGLE_CONFIG = {
+  /* ▼▼▼ 관리자 설정 영역 (1회만 수정) ▼▼▼ */
+  CLIENT_ID:  localStorage.getItem('g_client_id') || '',   // OAuth Client ID
+  FOLDER_ID:  localStorage.getItem('g_folder_id') || '',   // Drive 폴더 ID
+  /* ▲▲▲ 관리자 설정 영역 끝 ▲▲▲ */
+  SCOPE: 'https://www.googleapis.com/auth/drive.readonly',
+};
+
+/* 현재 로그인 상태 */
+let _driveToken    = null;
+let _driveTokenExp = 0;
+let _driveUserInfo = null;  // { name, email, picture }
+
+function getClientId()        { return GOOGLE_CONFIG.CLIENT_ID || localStorage.getItem('g_client_id') || null; }
+function getServiceFolderId() { return GOOGLE_CONFIG.FOLDER_ID || localStorage.getItem('g_folder_id') || null; }
+function getGoogleApiKey()    { return null; } // OAuth 방식에서는 불필요
+
+/** 설정 저장 (관리자 설정 UI에서 호출) */
+function saveGoogleSettings(apiKey, clientId, folderId) {
+  if (clientId) { localStorage.setItem('g_client_id', clientId.trim()); GOOGLE_CONFIG.CLIENT_ID = clientId.trim(); }
+  if (folderId) { localStorage.setItem('g_folder_id', folderId.trim()); GOOGLE_CONFIG.FOLDER_ID = folderId.trim(); }
+  driveInit = false;
 }
 
-/* Google Identity Services (GIS) 로드 */
+/** 설정 초기화 */
+function clearGoogleSettings() {
+  localStorage.removeItem('g_client_id');
+  localStorage.removeItem('g_folder_id');
+  GOOGLE_CONFIG.CLIENT_ID = '';
+  GOOGLE_CONFIG.FOLDER_ID = '';
+  _driveToken = null; _driveTokenExp = 0; _driveUserInfo = null;
+  driveInit = false;
+  updateNavbarLoginBtn();
+}
+
+/* ── GIS 로드 ── */
 function loadGIS() {
   return new Promise((res) => {
     if (window.google?.accounts?.oauth2) { res(); return; }
@@ -335,46 +369,76 @@ function loadGIS() {
   });
 }
 
-/* Drive access_token 확보 (GIS tokenClient 방식) */
-let _driveToken = null;
-let _driveTokenExp = 0;
+/* ── gapi 로드 ── */
+function loadGapi() {
+  return new Promise((res) => {
+    if (window.gapi) { res(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://apis.google.com/js/api.js';
+    s.onload = res; s.onerror = res;
+    document.head.appendChild(s);
+  });
+}
+
+/* ── Google 로그인 (팝업) → access_token 획득 ── */
 function getDriveToken() {
   return new Promise(async (res, rej) => {
     if (_driveToken && Date.now() < _driveTokenExp) { res(_driveToken); return; }
     await loadGIS();
     if (!window.google?.accounts?.oauth2) { rej(new Error('Google GIS 로드 실패')); return; }
+    const cid = getClientId();
+    if (!cid) { showGoogleSettingsDialog(null); rej(new Error('Client ID 미설정')); return; }
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: getClientId(),
-      scope: 'https://www.googleapis.com/auth/drive',
-      callback: (resp) => {
-        if (resp.error) { rej(new Error('Google 인증 실패: ' + resp.error)); return; }
+      client_id: cid,
+      scope: GOOGLE_CONFIG.SCOPE,
+      callback: async (resp) => {
+        if (resp.error) { rej(new Error('Google 로그인 실패: ' + resp.error)); return; }
         _driveToken    = resp.access_token;
         _driveTokenExp = Date.now() + (resp.expires_in - 60) * 1000;
+        /* 사용자 정보 가져오기 */
+        try {
+          const ui = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: 'Bearer ' + _driveToken }
+          });
+          _driveUserInfo = await ui.json();
+        } catch(_) {}
+        updateNavbarLoginBtn();
         res(_driveToken);
       },
     });
-    client.requestAccessToken({ prompt: _driveToken ? '' : 'consent' });
+    client.requestAccessToken({ prompt: '' });
   });
 }
-/* ── Google 설정 (localStorage 보관 — 브라우저 재시작 후에도 유지) ── */
-function getGoogleApiKey()    { return localStorage.getItem('g_api_key')    || null; }
-function getClientId()        { return localStorage.getItem('g_client_id')  || null; }
-function getServiceFolderId() { return localStorage.getItem('g_folder_id')  || null; }
 
-/** 설정 저장 (설정 UI에서 호출) */
-function saveGoogleSettings(apiKey, clientId, folderId) {
-  if (apiKey)   localStorage.setItem('g_api_key',   apiKey.trim());
-  if (clientId) localStorage.setItem('g_client_id', clientId.trim());
-  if (folderId) localStorage.setItem('g_folder_id', folderId.trim());
-  driveInit = false; // initGapi 재시도를 위해 플래그 리셋
+/* ── Google 로그아웃 ── */
+function googleSignOut() {
+  if (_driveToken && window.google?.accounts?.oauth2) {
+    google.accounts.oauth2.revoke(_driveToken);
+  }
+  _driveToken = null; _driveTokenExp = 0; _driveUserInfo = null;
+  driveInit = false;
+  updateNavbarLoginBtn();
+  showToast('👋 로그아웃되었습니다.');
 }
 
-/** 설정 초기화 */
-function clearGoogleSettings() {
-  localStorage.removeItem('g_api_key');
-  localStorage.removeItem('g_client_id');
-  localStorage.removeItem('g_folder_id');
-  _driveToken = null; _driveTokenExp = 0; driveInit = false;
+/* ── 네브바 로그인 버튼 업데이트 ── */
+function updateNavbarLoginBtn() {
+  const btn = document.getElementById('google-login-btn');
+  if (!btn) return;
+  if (_driveUserInfo) {
+    btn.innerHTML = `<img src="${_driveUserInfo.picture||''}" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:6px;" onerror="this.style.display='none'"><span style="font-size:13px;">${_driveUserInfo.name||_driveUserInfo.email||'로그인됨'}</span>`;
+    btn.title = _driveUserInfo.email || '';
+    btn.onclick = () => {
+      if (confirm('Google 계정에서 로그아웃하시겠습니까?')) googleSignOut();
+    };
+  } else {
+    btn.innerHTML = '<span style="font-size:13px;">🔑 Google 로그인</span>';
+    btn.title = 'Google 계정으로 Drive에 접속';
+    btn.onclick = async () => {
+      try { await getDriveToken(); showToast('✅ Google Drive 연결됨'); }
+      catch(e) { showToast('❌ ' + e.message, true); }
+    };
+  }
 }
 
 // GitHub 설정 (Public 저장소 - 토큰 불필요)
@@ -411,18 +475,25 @@ const menuData = {
 };
 
 const contentEl = document.getElementById('content');
+window.addEventListener('DOMContentLoaded', () => setTimeout(updateNavbarLoginBtn, 200));
 let driveInit=false, driveLoaded=false, obsLoaded=false;
 let _obsNeedsReload = false; // 삭제/저장 후 옵시디안 메뉴 강제 재로드 플래그
 
-/* ── Google Drive ── */
+/* ── Google Drive (OAuth 토큰 방식 - API Key 불필요) ── */
 function initGapi() {
-  return new Promise(async (res,rej) => {
+  return new Promise(async (res, rej) => {
     if (driveInit) { res(); return; }
     await loadGapi();
     if (!window.gapi) { rej(new Error('gapi 로드 실패')); return; }
     gapi.load('client', async () => {
-      try { await gapi.client.init({ apiKey:getGoogleApiKey(), discoveryDocs:['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }); driveInit=true; res(); }
-      catch(e) { rej(e); }
+      try {
+        await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+        /* OAuth 토큰 적용 */
+        const token = await getDriveToken();
+        gapi.client.setToken({ access_token: token });
+        driveInit = true;
+        res();
+      } catch(e) { rej(e); }
     });
   });
 }
@@ -670,9 +741,34 @@ function makeFolderRow(folName, cls='dd-folder') {
 
 /* ── 구글드라이브 메뉴 (전면 개편) ── */
 async function populateServiceMenu(dd) {
-  /* 설정값 미입력 시 설정 UI 표시 */
-  if (!getGoogleApiKey() || !getClientId() || !getServiceFolderId()) {
+  /* Folder ID 미설정 시 관리자 설정 UI 표시 */
+  if (!getServiceFolderId() || !getClientId()) {
     showGoogleSettingsDialog(dd);
+    return;
+  }
+  /* 로그인 안 된 경우 → 로그인 유도 */
+  if (!_driveToken || Date.now() >= _driveTokenExp) {
+    dd.innerHTML = '';
+    const loginBox = document.createElement('div');
+    loginBox.style.cssText = 'padding:24px 16px;text-align:center;';
+    loginBox.innerHTML = `
+      <div style="font-size:32px;margin-bottom:10px;">🔑</div>
+      <div style="color:white;font-size:14px;font-weight:600;margin-bottom:6px;">Google 로그인이 필요합니다</div>
+      <div style="color:rgba(255,255,255,0.45);font-size:12px;margin-bottom:16px;">Drive 파일에 접근하려면<br>Google 계정으로 로그인하세요.</div>
+    `;
+    const loginBtn = document.createElement('button');
+    loginBtn.innerHTML = '🔑 Google 로그인';
+    loginBtn.style.cssText = 'width:100%;padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,#4285f4,#34a853);color:white;font-size:14px;font-weight:700;cursor:pointer;';
+    loginBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        await getDriveToken();
+        dd.innerHTML = '';
+        await populateServiceMenu(dd);
+      } catch(err) { showToast('❌ ' + err.message, true); }
+    };
+    loginBox.appendChild(loginBtn);
+    dd.appendChild(loginBox);
     return;
   }
 
@@ -2749,7 +2845,7 @@ function showGoogleSettingsDialog(ddToReload) {
   const header = document.createElement('div');
   header.style.cssText = 'background:linear-gradient(135deg,#1e3a5f,#16213e);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(52,152,219,0.2);';
   const headerLeft = document.createElement('div');
-  headerLeft.innerHTML = '<div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">🔗</span><div><div style="color:white;font-size:16px;font-weight:700">Google Drive 연동 설정</div><div style="color:#64b5f6;font-size:11px;margin-top:2px">설정은 브라우저에 영구 저장됩니다</div></div></div>';
+  headerLeft.innerHTML = '<div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">⚙️</span><div><div style="color:white;font-size:16px;font-weight:700">관리자 설정 (1회만 입력)</div><div style="color:#64b5f6;font-size:11px;margin-top:2px">저장 후 Google 로그인 버튼만 사용하면 됩니다</div></div></div>';
   const xBtn = document.createElement('button');
   xBtn.innerHTML = '✕';
   xBtn.style.cssText = 'background:rgba(255,255,255,0.1);border:none;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;padding:6px 10px;border-radius:6px;line-height:1;';
@@ -2812,16 +2908,17 @@ function showGoogleSettingsDialog(ddToReload) {
     return inp;
   };
 
-  const inpApiKey   = mkField('Google API Key',        'g_api_key',   'AIzaSy...', 'Google Cloud Console');
-  const inpClientId = mkField('OAuth 2.0 Client ID',   'g_client_id', '000000000000-xxxx.apps.googleusercontent.com', 'OAuth 동의 화면');
+  const inpClientId = mkField('OAuth 2.0 Client ID',   'g_client_id', '000000000000-xxxx.apps.googleusercontent.com', 'Google Cloud Console');
   const inpFolderId = mkField('Drive 서비스 폴더 ID',   'g_folder_id', '1AbCdEfGhIjKlMnOpQrStUvWxYz', '공유 폴더 URL에서 복사');
 
   /* ── 도움말 박스 ── */
   const helpBox = document.createElement('div');
   helpBox.style.cssText = 'background:#1e293b;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:20px;';
-  helpBox.innerHTML = '<div style="font-size:11px;color:#64748b;line-height:1.8;">' +
-    '<b style="color:#94a3b8">📌 폴더 ID 확인 방법:</b><br>' +
-    'Google Drive에서 폴더 열기 → 주소창의 <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;color:#93c5fd">folders/<b style="color:#60a5fa">여기가 ID</b></code> 부분을 복사하세요.' +
+  helpBox.innerHTML = '<div style="font-size:11px;color:#64748b;line-height:1.9;">' +
+    '<b style="color:#94a3b8">📌 설정 방법 (최초 1회):</b><br>' +
+    '① <a href="https://console.cloud.google.com/" target="_blank" style="color:#60a5fa">Google Cloud Console</a> → OAuth 2.0 클라이언트 ID 생성<br>' +
+    '② Drive 폴더 열기 → 주소창 <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;color:#93c5fd">folders/<b style="color:#60a5fa">여기가 ID</b></code> 복사<br>' +
+    '③ 저장 후 → 네브바의 <b style="color:#4ade80">🔑 Google 로그인</b> 버튼 클릭' +
     '</div>';
   body.appendChild(helpBox);
 
@@ -2859,13 +2956,12 @@ function showGoogleSettingsDialog(ddToReload) {
   saveBtn.onmouseover = () => saveBtn.style.opacity = '0.9';
   saveBtn.onmouseout  = () => saveBtn.style.opacity = '1';
   saveBtn.onclick = async () => {
-    const apiKey   = inpApiKey.value.trim();
     const clientId = inpClientId.value.trim();
     const folderId = inpFolderId.value.trim();
-    if (!apiKey || !clientId || !folderId) {
-      showToast('❌ 세 항목 모두 입력해주세요.', true); return;
+    if (!clientId || !folderId) {
+      showToast('❌ Client ID와 폴더 ID를 입력해주세요.', true); return;
     }
-    saveGoogleSettings(apiKey, clientId, folderId);
+    saveGoogleSettings(null, clientId, folderId);
     overlay.remove();
     showToast('✅ Google Drive 연동 설정이 저장되었습니다.');
     if (ddToReload) {
