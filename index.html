@@ -1,4 +1,4 @@
-<!-- v260401007 - gapi 제거, fetch+OAuth 방식, null 방어, Google Docs 지원 -->
+<!-- v260401008 - 에러 원인별 안내, 다시시도 버튼 추가 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1026,11 +1026,42 @@ async function populateServiceMenu(dd) {
     dd.innerHTML = '';
     const errEl = document.createElement('div');
     errEl.style.cssText = 'padding:16px 14px;';
-    errEl.innerHTML = `<div style="color:#f87171;font-size:13px;margin-bottom:10px;">❌ Drive 연결 오류</div><div style="color:rgba(255,255,255,0.4);font-size:11px;background:rgba(0,0,0,0.2);padding:8px 10px;border-radius:6px;word-break:break-all;">${escHtml(e.message)}</div>`;
+
+    /* 에러 원인별 안내 메시지 */
+    let hint = '';
+    const msg = (e.message || '').toLowerCase();
+    if (msg.includes('not found') || msg.includes('404')) {
+      hint = '⚠️ <b>Folder ID를 확인하세요.</b><br>Drive 폴더 URL의 <code>folders/</code> 뒷부분을 정확히 복사했는지 확인하세요.';
+    } else if (msg.includes('403') || msg.includes('forbidden') || msg.includes('permission')) {
+      hint = '⚠️ <b>접근 권한이 없습니다.</b><br>로그인한 Google 계정이 해당 폴더에 접근 권한이 있는지 확인하세요.';
+    } else if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('invalid')) {
+      hint = '⚠️ <b>인증이 만료되었습니다.</b><br>Google 로그아웃 후 다시 로그인하세요.';
+    } else if (msg.includes('client id') || msg.includes('client_id')) {
+      hint = '⚠️ <b>OAuth Client ID가 올바르지 않습니다.</b><br>Google Cloud Console에서 Client ID를 다시 확인하세요.';
+    }
+
+    errEl.innerHTML = `
+      <div style="color:#f87171;font-size:13px;font-weight:600;margin-bottom:8px;">❌ Drive 연결 오류</div>
+      <div style="color:rgba(255,255,255,0.5);font-size:11px;background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;word-break:break-all;margin-bottom:${hint?'10px':'0'}">${escHtml(e.message)}</div>
+      ${hint ? `<div style="color:#fbbf24;font-size:11px;line-height:1.7;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);padding:8px 10px;border-radius:6px;">${hint}</div>` : ''}
+    `;
     dd.appendChild(errEl);
-    const retryItem = makeDdItem('⚙️ Google 설정 변경', () => { closeAll(); showGoogleSettingsDialog(dd); });
-    retryItem.style.cssText += ';color:#64b5f6;font-size:12px;';
-    dd.appendChild(retryItem);
+    const btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:8px;padding:8px 14px 14px;';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = '🔄 다시 시도';
+    retryBtn.style.cssText = 'flex:1;padding:8px;border:1px solid rgba(52,152,219,0.4);border-radius:6px;background:rgba(52,152,219,0.1);color:#64b5f6;font-size:12px;cursor:pointer;';
+    retryBtn.onclick = async (ev) => { ev.stopPropagation(); dd.innerHTML=''; await populateServiceMenu(dd); };
+
+    const settingBtn = document.createElement('button');
+    settingBtn.textContent = '⚙️ 설정 변경';
+    settingBtn.style.cssText = 'flex:1;padding:8px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);font-size:12px;cursor:pointer;';
+    settingBtn.onclick = (ev) => { ev.stopPropagation(); showGoogleSettingsDialog(dd); };
+
+    btnWrap.appendChild(retryBtn);
+    btnWrap.appendChild(settingBtn);
+    dd.appendChild(btnWrap);
   }
 }
 
