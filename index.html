@@ -1,4 +1,4 @@
-<!-- v260401008 - 에러 원인별 안내, 다시시도 버튼 추가 -->
+<!-- v260401009 - 본인 Drive 자동탐색, Folder ID 완전 제거, 계정별 독립 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -325,8 +325,7 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 
 const GOOGLE_CONFIG = {
   /* ▼▼▼ 관리자 설정 영역 (1회만 수정) ▼▼▼ */
-  CLIENT_ID:  localStorage.getItem('g_client_id') || '',   // OAuth Client ID
-  FOLDER_ID:  localStorage.getItem('g_folder_id') || '',   // Drive 폴더 ID
+  CLIENT_ID: localStorage.getItem('g_client_id') || '',
   /* ▲▲▲ 관리자 설정 영역 끝 ▲▲▲ */
   SCOPE: 'https://www.googleapis.com/auth/drive.readonly',
 };
@@ -337,13 +336,13 @@ let _driveTokenExp = 0;
 let _driveUserInfo = null;  // { name, email, picture }
 
 function getClientId()        { return GOOGLE_CONFIG.CLIENT_ID || localStorage.getItem('g_client_id') || null; }
-function getServiceFolderId() { return GOOGLE_CONFIG.FOLDER_ID || localStorage.getItem('g_folder_id') || null; }
-function getGoogleApiKey()    { return null; } // OAuth 방식에서는 불필요
+/* 로그인한 계정의 My Drive root = 'root' (폴더 ID 불필요) */
+function getServiceFolderId() { return 'root'; }
+function getGoogleApiKey()    { return null; }
 
-/** 설정 저장 (관리자 설정 UI에서 호출) */
+/** 설정 저장 — Client ID만 */
 function saveGoogleSettings(apiKey, clientId, folderId) {
   if (clientId) { localStorage.setItem('g_client_id', clientId.trim()); GOOGLE_CONFIG.CLIENT_ID = clientId.trim(); }
-  if (folderId) { localStorage.setItem('g_folder_id', folderId.trim()); GOOGLE_CONFIG.FOLDER_ID = folderId.trim(); }
   driveInit = false;
 }
 
@@ -352,7 +351,6 @@ function clearGoogleSettings() {
   localStorage.removeItem('g_client_id');
   localStorage.removeItem('g_folder_id');
   GOOGLE_CONFIG.CLIENT_ID = '';
-  GOOGLE_CONFIG.FOLDER_ID = '';
   _driveToken = null; _driveTokenExp = 0; _driveUserInfo = null;
   driveInit = false;
   updateNavbarLoginBtn();
@@ -741,15 +739,15 @@ function makeFolderRow(folName, cls='dd-folder') {
 
 /* ── 구글드라이브 메뉴 (전면 개편) ── */
 async function populateServiceMenu(dd) {
-  /* Folder ID / Client ID 미설정 시 → dd 안에 안내 + 설정 팝업 자동 오픈 */
-  if (!getServiceFolderId() || !getClientId()) {
+  /* Client ID 미설정 시 → 설정 안내 */
+  if (!getClientId()) {
     dd.innerHTML = '';
     const setupBox = document.createElement('div');
     setupBox.style.cssText = 'padding:20px 16px;text-align:center;';
     setupBox.innerHTML = `
       <div style="font-size:28px;margin-bottom:8px;">⚙️</div>
-      <div style="color:white;font-size:13px;font-weight:600;margin-bottom:4px;">초기 설정이 필요합니다</div>
-      <div style="color:rgba(255,255,255,0.45);font-size:11px;margin-bottom:14px;">Client ID와 Drive 폴더 ID를<br>1회 입력하면 이후 로그인만 하면 됩니다.</div>
+      <div style="color:white;font-size:13px;font-weight:600;margin-bottom:4px;">OAuth Client ID 설정 필요</div>
+      <div style="color:rgba(255,255,255,0.45);font-size:11px;margin-bottom:14px;">Client ID만 1회 입력하면<br>로그인 후 본인 Drive가 자동으로 표시됩니다.</div>
     `;
     const setupBtn = document.createElement('button');
     setupBtn.textContent = '⚙️ 설정 열기';
@@ -757,7 +755,6 @@ async function populateServiceMenu(dd) {
     setupBtn.onclick = (e) => { e.stopPropagation(); showGoogleSettingsDialog(dd); };
     setupBox.appendChild(setupBtn);
     dd.appendChild(setupBox);
-    /* 자동으로 설정 팝업도 오픈 */
     setTimeout(() => showGoogleSettingsDialog(dd), 100);
     return;
   }
@@ -799,17 +796,23 @@ async function populateServiceMenu(dd) {
     const files = await fetchDriveFiles(getServiceFolderId());
     dd.innerHTML = '';
 
-    /* ── 헤더 (계정 정보 + 파일 수) ── */
+    /* ── 헤더 (로그인 계정 + 파일 수) ── */
     const driveHeader = document.createElement('div');
     driveHeader.style.cssText = 'padding:10px 14px 8px;background:rgba(52,152,219,0.1);border-bottom:1px solid rgba(52,152,219,0.2);';
+    const userLabel = _driveUserInfo
+      ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+           ${_driveUserInfo.picture ? `<img src="${_driveUserInfo.picture}" style="width:18px;height:18px;border-radius:50%;">` : ''}
+           <span style="font-size:11px;color:rgba(255,255,255,0.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_driveUserInfo.email||''}</span>
+         </div>` : '';
     driveHeader.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:7px;">
           <span style="font-size:16px;">☁️</span>
-          <span style="font-size:12px;font-weight:700;color:#64b5f6;">Google Drive</span>
+          <span style="font-size:12px;font-weight:700;color:#64b5f6;">My Google Drive</span>
         </div>
         <span style="font-size:11px;background:rgba(52,152,219,0.25);color:#90caf9;padding:2px 8px;border-radius:10px;">${files.length}개 항목</span>
-      </div>`;
+      </div>
+      ${userLabel}`;
     dd.appendChild(driveHeader);
 
     if (!files.length) {
@@ -1507,7 +1510,7 @@ function recordDownload(name, id) {
   if (ex) { ex.count++; ex.lastDownload=now; }
   else s.push({ fileId:id, fileName:name, count:1, firstDownload:now, lastDownload:now });
   localStorage.setItem('downloadStats', JSON.stringify(s));
-  renderDashboard();
+  showDashboard();
 }
 
 async function recordVisit() {
@@ -1517,13 +1520,13 @@ async function recordVisit() {
   v.unshift({ time:new Date().toLocaleString('ko-KR'), ip });
   if (v.length>50) v=v.slice(0,50);
   localStorage.setItem('visitLog', JSON.stringify(v));
-  renderDashboard();
+  showDashboard();
 }
 
 function resetAllStats() {
   if (!confirm('통계를 초기화하시겠습니까?')) return;
   localStorage.removeItem('visitLog'); localStorage.removeItem('downloadStats');
-  renderDashboard();
+  showDashboard();
 }
 
 
@@ -2914,7 +2917,7 @@ async function showSaveDialog(name, folder) {
 function showGoogleSettingsDialog(ddToReload) {
   document.getElementById('google-settings-overlay')?.remove();
 
-  const hasSaved = !!(getGoogleApiKey() && getClientId() && getServiceFolderId());
+  const hasSaved = !!getClientId();
 
   const overlay = document.createElement('div');
   overlay.id = 'google-settings-overlay';
@@ -2991,7 +2994,6 @@ function showGoogleSettingsDialog(ddToReload) {
   };
 
   const inpClientId = mkField('OAuth 2.0 Client ID',   'g_client_id', '000000000000-xxxx.apps.googleusercontent.com', 'Google Cloud Console');
-  const inpFolderId = mkField('Drive 서비스 폴더 ID',   'g_folder_id', '1AbCdEfGhIjKlMnOpQrStUvWxYz', '공유 폴더 URL에서 복사');
 
   /* ── 도움말 박스 ── */
   const helpBox = document.createElement('div');
@@ -2999,8 +3001,8 @@ function showGoogleSettingsDialog(ddToReload) {
   helpBox.innerHTML = '<div style="font-size:11px;color:#64748b;line-height:1.9;">' +
     '<b style="color:#94a3b8">📌 설정 방법 (최초 1회):</b><br>' +
     '① <a href="https://console.cloud.google.com/" target="_blank" style="color:#60a5fa">Google Cloud Console</a> → OAuth 2.0 클라이언트 ID 생성<br>' +
-    '② Drive 폴더 열기 → 주소창 <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;color:#93c5fd">folders/<b style="color:#60a5fa">여기가 ID</b></code> 복사<br>' +
-    '③ 저장 후 → 네브바의 <b style="color:#4ade80">🔑 Google 로그인</b> 버튼 클릭' +
+    '② Client ID 붙여넣기 후 저장<br>' +
+    '③ 네브바의 <b style="color:#4ade80">🔑 Google 로그인</b> 클릭 → 본인 Drive 자동 표시' +
     '</div>';
   body.appendChild(helpBox);
 
@@ -3039,11 +3041,10 @@ function showGoogleSettingsDialog(ddToReload) {
   saveBtn.onmouseout  = () => saveBtn.style.opacity = '1';
   saveBtn.onclick = async () => {
     const clientId = inpClientId.value.trim();
-    const folderId = inpFolderId.value.trim();
-    if (!clientId || !folderId) {
-      showToast('❌ Client ID와 폴더 ID를 입력해주세요.', true); return;
+    if (!clientId) {
+      showToast('❌ Client ID를 입력해주세요.', true); return;
     }
-    saveGoogleSettings(null, clientId, folderId);
+    saveGoogleSettings(null, clientId, null);
     overlay.remove();
     showToast('✅ Google Drive 연동 설정이 저장되었습니다.');
     if (ddToReload) {
