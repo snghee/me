@@ -1,4 +1,4 @@
-<!-- v260401009 - 본인 Drive 자동탐색, Folder ID 완전 제거, 계정별 독립 -->
+<!-- v260401010 - PDF/Google Docs/Sheets/Slides/이미지 인앱 뷰어 추가 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -898,23 +898,85 @@ async function populateServiceMenu(dd) {
             const fname = (f.displayName || f.name || '').toLowerCase();
             const mime  = f.mimeType || '';
 
-            /* Google Docs 네이티브 파일 → 바로 열기 링크 제공 */
-            if (mime.startsWith('application/vnd.google-apps.')) {
-              const viewUrl = `https://drive.google.com/file/d/${f.id}/view`;
+            /* ── 파일 형식별 뷰어 ── */
+
+            /* Google Docs/Sheets/Slides/Forms → embed iframe */
+            const googleEmbedMap = {
+              'application/vnd.google-apps.document':     'https://docs.google.com/document/d/{id}/preview',
+              'application/vnd.google-apps.spreadsheet':  'https://docs.google.com/spreadsheets/d/{id}/preview',
+              'application/vnd.google-apps.presentation': 'https://docs.google.com/presentation/d/{id}/preview',
+              'application/vnd.google-apps.form':         'https://docs.google.com/forms/d/{id}/viewform?embedded=true',
+            };
+
+            if (googleEmbedMap[mime]) {
+              const embedUrl = googleEmbedMap[mime].replace('{id}', f.id);
+              const openUrl  = `https://drive.google.com/file/d/${f.id}/view`;
               recordDownload(f.name, f.id);
+              const typeLabel = {
+                'application/vnd.google-apps.document':     '📝 Google 문서',
+                'application/vnd.google-apps.spreadsheet':  '📊 Google 스프레드시트',
+                'application/vnd.google-apps.presentation': '📊 Google 슬라이드',
+                'application/vnd.google-apps.form':         '📋 Google 설문',
+              }[mime] || '📄 Google 파일';
               contentEl.className = 'content markdown-body';
-              contentEl.innerHTML = `<div class="file-inner">
-                <div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div>
-                <h2 style="margin-bottom:16px">${escHtml(f.displayName || f.name)}</h2>
-                <p style="color:#64748b;margin-bottom:20px;">Google 문서는 Drive에서 직접 열립니다.</p>
-                <a href="${viewUrl}" target="_blank" style="display:inline-block;padding:10px 20px;background:#4285f4;color:white;border-radius:6px;text-decoration:none;font-weight:600;">
-                  📂 Google Drive에서 열기
-                </a>
+              contentEl.innerHTML = `<div style="display:flex;flex-direction:column;height:100%;min-height:0;">
+                <div style="padding:12px 24px;background:#f8fafc;border-bottom:1px solid #e8edf2;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                  <div>
+                    <div style="font-size:11px;color:#999;margin-bottom:2px;">구글드라이브 > ${escHtml(displayPath)}</div>
+                    <div style="font-size:15px;font-weight:600;color:#1e293b;">${typeLabel} · ${escHtml(f.displayName||f.name)}</div>
+                  </div>
+                  <a href="${openUrl}" target="_blank"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#4285f4;color:white;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;flex-shrink:0;">
+                    ↗ Drive에서 열기
+                  </a>
+                </div>
+                <iframe src="${embedUrl}"
+                  style="flex:1;width:100%;border:none;min-height:0;"
+                  allow="autoplay"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups">
+                </iframe>
               </div>`;
               return;
             }
 
-            /* 일반 파일 → fetch로 내용 읽기 */
+            /* PDF → iframe 뷰어 */
+            if (fname.endsWith('.pdf')) {
+              const pdfUrl = `https://drive.google.com/file/d/${f.id}/preview`;
+              recordDownload(f.name, f.id);
+              contentEl.className = 'content markdown-body';
+              contentEl.innerHTML = `<div style="display:flex;flex-direction:column;height:100%;min-height:0;">
+                <div style="padding:12px 24px;background:#f8fafc;border-bottom:1px solid #e8edf2;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                  <div>
+                    <div style="font-size:11px;color:#999;margin-bottom:2px;">구글드라이브 > ${escHtml(displayPath)}</div>
+                    <div style="font-size:15px;font-weight:600;color:#1e293b;">📕 ${escHtml(f.displayName||f.name)}</div>
+                  </div>
+                  <a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#e74c3c;color:white;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;flex-shrink:0;">
+                    ⬇ 다운로드
+                  </a>
+                </div>
+                <iframe src="${pdfUrl}"
+                  style="flex:1;width:100%;border:none;min-height:0;"
+                  allow="autoplay">
+                </iframe>
+              </div>`;
+              return;
+            }
+
+            /* 이미지 → img 태그 */
+            if (fname.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) {
+              const imgUrl = `https://drive.google.com/thumbnail?id=${f.id}&sz=w1200`;
+              recordDownload(f.name, f.id);
+              contentEl.className = 'content markdown-body';
+              contentEl.innerHTML = `<div class="file-inner">
+                <div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div>
+                <h2 style="margin-bottom:16px">🖼️ ${escHtml(f.displayName||f.name)}</h2>
+                <img src="${imgUrl}" style="max-width:100%;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+              </div>`;
+              return;
+            }
+
+            /* 그 외 텍스트 파일 → fetch로 읽기 */
             const r = await fetch(
               `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
               { headers: { Authorization: 'Bearer ' + tok } }
@@ -926,7 +988,7 @@ async function populateServiceMenu(dd) {
             contentEl.className = 'content markdown-body';
             contentEl.innerHTML = `<div class="file-inner">
               <div class="breadcrumb">구글드라이브 > ${escHtml(displayPath)}</div>
-              <h2 style="margin-bottom:16px">${escHtml(f.displayName || f.name)}</h2>
+              <h2 style="margin-bottom:16px">${escHtml(f.displayName||f.name)}</h2>
               <a href="https://drive.google.com/uc?export=download&id=${encodeURIComponent(f.id)}" target="_blank"
                 style="display:inline-block;padding:8px 16px;background:#3498db;color:white;border-radius:4px;text-decoration:none;margin-bottom:20px">
                 ⬇ 다운로드
