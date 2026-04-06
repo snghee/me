@@ -316,12 +316,11 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 </div><!-- main-layout -->
 
 <script>
-/* ── escHtml: XSS 방지 (최상단 정의 필수) ── */
+/* XSS 방지 - 최상단 정의 (renderMenu 등에서 사용) */
 function escHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
 
 /* ════════════════════════════════════════════════════════
    ★ Google OAuth 직접 로그인 방식
@@ -490,7 +489,8 @@ async function pvGetRawFile(path) {
   if (!r.ok) throw new Error('파일 읽기 실패: ' + r.status);
   const data = await r.json();
   /* Base64 디코딩 */
-  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+  return decodeURIComponent(escape(atob(data.content.replace(/
+/g, ''))));
 }
 
 // GitHub API 헬퍼
@@ -1797,20 +1797,15 @@ function showGraph() { /* 화면 유지 */ }
 function hideGraph() { /* 화면 유지 */ }
 
 /* ── 초기화 ── */
-console.log('[DNX] script 진입, readyState=', document.readyState);
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('[DNX] DOMContentLoaded 실행');
     renderMenu();
-    console.log('[DNX] renderMenu 완료');
     recordVisit();
     initObsidianGraph();
     updateNavbarLoginBtn();
   });
 } else {
-  console.log('[DNX] 즉시 실행');
   renderMenu();
-  console.log('[DNX] renderMenu 완료');
   recordVisit();
   initObsidianGraph();
   updateNavbarLoginBtn();
@@ -3453,8 +3448,7 @@ function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().duration(30
 function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 0.7); }
 function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().duration(500).call(graphZoom.transform, d3.zoomIdentity); }
 
-
-} // initObsidianGraph
+} // initObsidianGraph 닫힘
 
 </script>
 </body>
