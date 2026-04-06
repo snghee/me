@@ -1798,15 +1798,20 @@ function showGraph() { /* 화면 유지 */ }
 function hideGraph() { /* 화면 유지 */ }
 
 /* ── 초기화 ── */
+console.log('[DNX] script 진입, readyState=', document.readyState);
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    console.log('[DNX] DOMContentLoaded 실행');
     renderMenu();
+    console.log('[DNX] renderMenu 완료');
     recordVisit();
     initObsidianGraph();
     updateNavbarLoginBtn();
   });
 } else {
+  console.log('[DNX] 즉시 실행');
   renderMenu();
+  console.log('[DNX] renderMenu 완료');
   recordVisit();
   initObsidianGraph();
   updateNavbarLoginBtn();
