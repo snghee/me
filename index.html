@@ -3453,7 +3453,8 @@ function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().duration(30
 function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 0.7); }
 function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().duration(500).call(graphZoom.transform, d3.zoomIdentity); }
 
-} // initObsidianGraph 닫힘
+
+} // initObsidianGraph
 
 </script>
 </body>
