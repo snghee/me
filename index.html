@@ -490,8 +490,7 @@ async function pvGetRawFile(path) {
   if (!r.ok) throw new Error('파일 읽기 실패: ' + r.status);
   const data = await r.json();
   /* Base64 디코딩 */
-  return decodeURIComponent(escape(atob(data.content.replace(/
-/g, ''))));
+  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
 }
 
 // GitHub API 헬퍼
