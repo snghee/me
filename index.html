@@ -1,4 +1,4 @@
-<!-- v260401010 - PDF/Google Docs/Sheets/Slides/이미지 인앱 뷰어 추가 -->
+<!-- v260401011 - Drive 삭제 실제 구현, 트리 lazy load, 휴지통 이동 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2734,47 +2734,112 @@ async function showDeleteDialog() {
     });
   }
 
-  // ── 구글드라이브 트리 (OAuth 2SV 설정 후 활성화 예정) ──
+  // ── 구글드라이브 트리 ──
   async function renderDriveTree() {
-    treeWrap.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'padding:32px 20px;text-align:center;';
+    treeWrap.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">⏳ Drive 목록 불러오는 중...</div>';
+    try {
+      const tok = await getDriveToken();
 
-    const icon = document.createElement('div');
-    icon.style.cssText = 'font-size:36px;margin-bottom:14px;';
-    icon.textContent = '🔐';
+      /* 한 폴더의 파일/폴더 목록 fetch */
+      async function listFolder(pid, pathPrefix) {
+        const url = `https://www.googleapis.com/drive/v3/files?` +
+          `q=${encodeURIComponent("'" + pid + "' in parents and trashed=false")}` +
+          `&pageSize=200&fields=files(id,name,mimeType)&orderBy=folder,name`;
+        const r = await fetch(url, { headers: { Authorization: 'Bearer ' + tok } });
+        if (!r.ok) throw new Error('Drive 목록 오류 ' + r.status);
+        const data = await r.json();
+        const items = data.files || [];
+        const result = [];
+        for (const f of items) {
+          if (!f || !f.id || !f.name) continue;
+          if (f.mimeType === 'application/vnd.google-apps.folder') {
+            result.push({ ...f, isFolder: true, path: pathPrefix ? pathPrefix + '/' + f.name : f.name, source: 'drive' });
+          } else {
+            result.push({ ...f, isFolder: false, path: pathPrefix ? pathPrefix + '/' + f.name : f.name, source: 'drive' });
+          }
+        }
+        return result;
+      }
 
-    const title = document.createElement('div');
-    title.style.cssText = 'font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;';
-    title.textContent = 'Google 인증 설정 필요';
+      const items = await listFolder('root', '');
+      treeWrap.innerHTML = '';
 
-    const desc = document.createElement('div');
-    desc.style.cssText = 'font-size:12px;color:#64748b;line-height:1.7;margin-bottom:20px;';
-    desc.innerHTML = 'Google Cloud Console에서 2단계 인증(2SV) 설정 후<br>'
-      + 'OAuth 클라이언트에 <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#e11d48;">https://snghee.github.io</code> 를<br>'
-      + '<b>승인된 JavaScript 원본</b>으로 추가하면 활성화됩니다.';
+      if (!items.length) {
+        treeWrap.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">📂 파일이 없습니다.</div>';
+        return;
+      }
 
-    const btn = document.createElement('a');
-    btn.href = 'https://myaccount.google.com/security';
-    btn.target = '_blank';
-    btn.style.cssText = 'display:inline-block;padding:8px 18px;background:#4285f4;color:white;border-radius:7px;font-size:13px;font-weight:600;text-decoration:none;';
-    btn.textContent = '🔑 Google 보안 설정 열기';
+      /* 파일/폴더 행 생성 */
+      const mkDriveRow = (f, indent=10) => {
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;align-items:center;padding:7px ${indent}px;border-radius:6px;cursor:pointer;font-size:13px;color:#334155;gap:7px;transition:background .1s;`;
+        const icon = f.isFolder ? '📁' : '📄';
+        row.innerHTML = `<span style="opacity:.7;font-size:12px">${icon}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(f.name)}</span>`;
+        row.onmouseover = () => { if (!row.dataset.sel) row.style.background = '#f8fafc'; };
+        row.onmouseout  = () => { if (!row.dataset.sel) row.style.background = ''; };
+        row.onclick = () => { highlightRow(row); setSelected(f); };
+        return row;
+      };
 
-    const link = document.createElement('div');
-    link.style.cssText = 'margin-top:10px;';
-    const a2 = document.createElement('a');
-    a2.href = 'https://console.cloud.google.com/apis/credentials';
-    a2.target = '_blank';
-    a2.style.cssText = 'font-size:11px;color:#94a3b8;text-decoration:underline;';
-    a2.textContent = 'Cloud Console 인증 설정';
-    link.appendChild(a2);
+      /* 폴더는 클릭 시 하위 목록 lazy load */
+      const mkFolderRow = (f, indent=10) => {
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;align-items:center;gap:5px;padding:7px ${indent}px;font-size:13px;color:#334155;cursor:pointer;border-radius:6px;transition:background .1s;`;
+        const arrow = document.createElement('span');
+        arrow.textContent = '▸'; arrow.style.cssText = 'font-size:10px;color:#94a3b8;flex-shrink:0;transition:transform .15s;';
+        const label = document.createElement('span');
+        label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        label.textContent = '📁 ' + f.name;
+        row.appendChild(arrow); row.appendChild(label);
+        row.onmouseover = () => { if (!row.dataset.sel) row.style.background = '#f8fafc'; };
+        row.onmouseout  = () => { if (!row.dataset.sel) row.style.background = ''; };
 
-    wrap.appendChild(icon);
-    wrap.appendChild(title);
-    wrap.appendChild(desc);
-    wrap.appendChild(btn);
-    wrap.appendChild(link);
-    treeWrap.appendChild(wrap);
+        const subList = document.createElement('div');
+        subList.style.display = 'none';
+        let loaded = false;
+
+        row.onclick = async () => {
+          /* 폴더 자체도 선택 가능 (폴더 삭제) */
+          highlightRow(row); setSelected(f);
+          const isOpen = subList.style.display !== 'none';
+          subList.style.display = isOpen ? 'none' : 'block';
+          arrow.textContent = isOpen ? '▸' : '▾';
+          if (!loaded && !isOpen) {
+            loaded = true;
+            subList.innerHTML = `<div style="padding:6px ${indent+18}px;font-size:11px;color:#94a3b8;">⏳ 불러오는 중...</div>`;
+            try {
+              const sub = await listFolder(f.id, f.path);
+              subList.innerHTML = '';
+              sub.forEach(sf => {
+                if (sf.isFolder) {
+                  const { row: sr, subList: sl } = mkFolderRow(sf, indent + 18);
+                  subList.appendChild(sr); subList.appendChild(sl);
+                } else {
+                  subList.appendChild(mkDriveRow(sf, indent + 18));
+                }
+              });
+              if (!sub.length) subList.innerHTML = `<div style="padding:6px ${indent+18}px;font-size:11px;color:#94a3b8;">(비어 있음)</div>`;
+            } catch(e) {
+              subList.innerHTML = `<div style="padding:6px ${indent+18}px;font-size:11px;color:#dc2626;">❌ ${escHtml(e.message)}</div>`;
+            }
+          }
+        };
+        return { row, subList };
+      };
+
+      items.forEach(f => {
+        if (f.isFolder) {
+          const { row, subList } = mkFolderRow(f);
+          treeWrap.appendChild(row);
+          treeWrap.appendChild(subList);
+        } else {
+          treeWrap.appendChild(mkDriveRow(f));
+        }
+      });
+
+    } catch(e) {
+      treeWrap.innerHTML = `<div style="padding:16px;color:#dc2626;font-size:13px;">❌ ${escHtml(e.message)}</div>`;
+    }
   }
 
   // ── 삭제 실행 ──
@@ -2814,8 +2879,29 @@ async function showDeleteDialog() {
         return;
 
       } else {
-        // 구글드라이브 삭제 - OAuth 2SV 설정 후 활성화 예정
-        throw new Error('구글드라이브 삭제는 OAuth 설정 완료 후 사용 가능합니다.');
+        // 구글드라이브 삭제 — 휴지통으로 이동 (Drive API PATCH trashed=true)
+        const tok = await getDriveToken();
+        const r = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${selectedFile.id}`,
+          {
+            method: 'PATCH',
+            headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trashed: true })
+          }
+        );
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error?.message || 'Drive 삭제 실패 ' + r.status);
+        }
+        const deletedName = selectedFile.name;
+        /* Drive 메뉴 갱신 */
+        const driveDD = document.getElementById('dd-1');
+        if (driveDD) { driveDD.innerHTML = ''; await populateServiceMenu(driveDD); }
+        setSelected(null);
+        overlay.remove();
+        showToast(`🗑 "${deletedName}" 휴지통으로 이동됨`);
+        showDashboard();
+        return;
       }
 
       overlay.remove();
