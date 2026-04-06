@@ -322,11 +322,6 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-/* XSS 방지 - 최상단 정의 (renderMenu 등에서 사용) */
-function escHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 
 /* ════════════════════════════════════════════════════════
    ★ Google OAuth 직접 로그인 방식
