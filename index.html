@@ -1,4 +1,4 @@
-<!-- v260401011 - Drive 삭제 실제 구현, 트리 lazy load, 휴지통 이동 -->
+<!-- v260401012 - private_vault my_token 폴더 옵시디안 메뉴 연동 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -327,7 +327,7 @@ const GOOGLE_CONFIG = {
   /* ▼▼▼ 관리자 설정 영역 (1회만 수정) ▼▼▼ */
   CLIENT_ID: localStorage.getItem('g_client_id') || '',
   /* ▲▲▲ 관리자 설정 영역 끝 ▲▲▲ */
-  SCOPE: 'https://www.googleapis.com/auth/drive.readonly',
+  SCOPE: 'https://www.googleapis.com/auth/drive',
 };
 
 /* 현재 로그인 상태 */
@@ -444,6 +444,48 @@ const GITHUB_OWNER  = 'snghee';
 const GITHUB_REPO   = 'Obsidian';
 const GITHUB_BRANCH = 'main';
 const GITHUB_API    = 'https://api.github.com';
+
+/* ── private_vault 설정 ── */
+const PRIVATE_VAULT = {
+  OWNER:  'snghee',
+  REPO:   'private_vault',
+  BRANCH: 'main',
+  FOLDER: 'my_token',   // 접근 허용 폴더
+};
+
+/** private_vault의 my_token 폴더 파일 목록 (토큰 필요) */
+async function pvGetTree() {
+  const token = localStorage.getItem('gh_write_token');
+  if (!token) throw new Error('GitHub 토큰이 없습니다. 파일 메뉴에서 먼저 토큰을 입력하세요.');
+  const r = await fetch(
+    `${GITHUB_API}/repos/${PRIVATE_VAULT.OWNER}/${PRIVATE_VAULT.REPO}/git/trees/${PRIVATE_VAULT.BRANCH}?recursive=1&t=${Date.now()}`,
+    { headers: { Authorization: `token ${token}` }, cache: 'no-store' }
+  );
+  if (r.status === 401 || r.status === 403) throw new Error('토큰 권한 없음 — private_vault 접근이 허용된 토큰인지 확인하세요.');
+  if (r.status === 404) throw new Error('저장소를 찾을 수 없습니다 (snghee/private_vault).');
+  if (!r.ok) throw new Error('private_vault 로드 실패: ' + r.status);
+  const data = await r.json();
+  /* my_token 폴더 안의 파일만 반환 */
+  return data.tree.filter(f =>
+    f.type === 'blob' &&
+    f.path.startsWith(PRIVATE_VAULT.FOLDER + '/')
+  );
+}
+
+/** private_vault 파일 raw 내용 읽기 */
+async function pvGetRawFile(path) {
+  const token = localStorage.getItem('gh_write_token');
+  if (!token) throw new Error('GitHub 토큰이 없습니다.');
+  const r = await fetch(
+    `${GITHUB_API}/repos/${PRIVATE_VAULT.OWNER}/${PRIVATE_VAULT.REPO}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${PRIVATE_VAULT.BRANCH}&t=${Date.now()}`,
+    { headers: { Authorization: `token ${token}` }, cache: 'no-store' }
+  );
+  if (!r.ok) throw new Error('파일 읽기 실패: ' + r.status);
+  const data = await r.json();
+  /* Base64 디코딩 */
+  return decodeURIComponent(escape(atob(data.content.replace(/
+/g, ''))));
+}
 
 // GitHub API 헬퍼
 async function ghGetTree() {
@@ -1204,6 +1246,80 @@ async function populateObsidianMenu(dd) {
         list.appendChild(item);
       });
     });
+    /* ── 🔒 private_vault / my_token 섹션 ── */
+    const pvSep = document.createElement('div');
+    pvSep.style.cssText = 'padding:7px 14px 5px;font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase;border-top:1px solid rgba(255,255,255,0.08);margin-top:4px;display:flex;align-items:center;gap:6px;';
+    pvSep.innerHTML = '🔒 Private Vault · my_token';
+    dd.appendChild(pvSep);
+
+    /* 로딩 표시 */
+    const pvLoading = document.createElement('div');
+    pvLoading.className = 'dd-item';
+    pvLoading.style.cssText = 'color:rgba(255,255,255,0.35);font-size:12px;padding:6px 16px;';
+    pvLoading.textContent = '⏳ 불러오는 중...';
+    dd.appendChild(pvLoading);
+
+    try {
+      const pvFiles = await pvGetTree();
+      pvLoading.remove();
+
+      if (!pvFiles.length) {
+        const emptyEl = document.createElement('div');
+        emptyEl.className = 'dd-item';
+        emptyEl.style.cssText = 'color:rgba(255,255,255,0.3);font-size:12px;padding:6px 16px;';
+        emptyEl.textContent = '(my_token 폴더가 비어 있음)';
+        dd.appendChild(emptyEl);
+      } else {
+        pvFiles.forEach(f => {
+          const parts = f.path.split('/');
+          const fname = parts[parts.length - 1].replace(/\.md$/, '');
+          const item = makeDdItem('🔑 ' + fname, async () => {
+            closeAll();
+            /* 대시보드 숨기기 */
+            const dash = document.getElementById('dashboard');
+            if (dash) dash.style.display = 'none';
+            document.querySelectorAll('.graph-controls').forEach(el => el.classList.remove('visible'));
+            contentEl.innerHTML = `<div class="file-inner"><div class="breadcrumb">private_vault > my_token > ${escHtml(fname)}</div><div class="loading"><div class="loading-spinner"></div></div></div>`;
+            try {
+              const raw = await pvGetRawFile(f.path);
+              contentEl.className = 'content markdown-body';
+              contentEl.innerHTML = `<div class="file-inner">
+                <div class="breadcrumb">🔒 private_vault > my_token > ${escHtml(fname)}</div>
+                <h2 style="margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:14px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;">PRIVATE</span>
+                  🔑 ${escHtml(fname)}
+                </h2>
+                ${f.path.endsWith('.md') ? mdToHtml(raw) : `<pre style="white-space:pre-wrap;font-size:13px;">${escHtml(raw)}</pre>`}
+              </div>`;
+            } catch(err) {
+              contentEl.innerHTML = `<div class="file-inner"><div class="err">❌ ${escHtml(err.message)}</div></div>`;
+            }
+          });
+          item.style.cssText += ';color:rgba(255,220,100,0.85);font-size:13px;';
+          dd.appendChild(item);
+        });
+      }
+    } catch(pvErr) {
+      pvLoading.remove();
+      const errEl = document.createElement('div');
+      errEl.style.cssText = 'padding:6px 16px;font-size:11px;color:#f87171;';
+      errEl.textContent = '❌ ' + pvErr.message;
+      dd.appendChild(errEl);
+      /* 토큰 없을 때 → 토큰 입력 안내 */
+      if (pvErr.message.includes('토큰')) {
+        const tokenBtn = makeDdItem('🔑 GitHub 토큰 입력', () => {
+          closeAll();
+          const t = prompt('GitHub Personal Access Token (private_vault 읽기 권한 필요):');
+          if (t) {
+            localStorage.setItem('gh_write_token', t.trim());
+            showToast('✅ 토큰 저장됨. 메뉴를 다시 열어주세요.');
+          }
+        });
+        tokenBtn.style.cssText += ';color:#64b5f6;font-size:12px;';
+        dd.appendChild(tokenBtn);
+      }
+    }
+
   } catch(e) { dd.innerHTML=`<div class="dd-item" style="color:#e74c3c">⚠️ GitHub 로드 실패: ${escHtml(e.message)}</div>`; }
 }
 
