@@ -316,6 +316,12 @@ body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; display:flex; fl
 </div><!-- main-layout -->
 
 <script>
+/* XSS 방지 - 최상단 정의 (renderMenu 등에서 사용) */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 /* ════════════════════════════════════════════════════════
    ★ Google OAuth 직접 로그인 방식
    - API Key / Client ID / Folder ID 를 HTML에 내장
@@ -515,7 +521,6 @@ const menuData = {
 };
 
 const contentEl = document.getElementById('content');
-window.addEventListener('DOMContentLoaded', () => setTimeout(updateNavbarLoginBtn, 200));
 let driveInit=false, driveLoaded=false, obsLoaded=false;
 let _obsNeedsReload = false; // 삭제/저장 후 옵시디안 메뉴 강제 재로드 플래그
 
@@ -1792,9 +1797,19 @@ function showGraph() { /* 화면 유지 */ }
 function hideGraph() { /* 화면 유지 */ }
 
 /* ── 초기화 ── */
-renderMenu();
-recordVisit();
-initObsidianGraph();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMenu();
+    recordVisit();
+    initObsidianGraph();
+    updateNavbarLoginBtn();
+  });
+} else {
+  renderMenu();
+  recordVisit();
+  initObsidianGraph();
+  updateNavbarLoginBtn();
+}
 
 // navbar hover 이벤트 - 함수 정의 후 등록
 document.getElementById('navbar').addEventListener('mouseenter', showGraph);
@@ -2666,9 +2681,6 @@ function onEditorInput() {
   if (preview) preview.innerHTML = mdToHtml(_currentRawContent);
 }
 
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 
 // ── 저장 다이얼로그 ──
 async function saveToGithub(name, folder) {
