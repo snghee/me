@@ -1,4 +1,4 @@
-<!-- v260408001 -->
+<!-- v260408002 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3002,7 +3002,7 @@ async function showDeleteDialog() {
         setSelected(null);
         overlay.remove();
         showToast(`🗑 "${deletedName}" 삭제 완료`);
-        showDashboard();
+        showDeleteDialog();
         return;
 
       } else {
@@ -3027,7 +3027,7 @@ async function showDeleteDialog() {
         setSelected(null);
         overlay.remove();
         showToast(`🗑 "${deletedName}" 휴지통으로 이동됨`);
-        showDashboard();
+        showDeleteDialog();
         return;
       }
 
