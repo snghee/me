@@ -1,4 +1,4 @@
-<!-- v260408002 -->
+<!-- v260408003 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2691,7 +2691,7 @@ async function saveToGithub(name, folder) {
   showSaveDialog(name, folder);
 }
 
-async function showDeleteDialog() {
+async function showDeleteDialog(initialTab) {
   document.getElementById('delete-dialog-overlay')?.remove();
 
   // ── GitHub 토큰 확인 (localStorage: 브라우저 종료 후에도 유지) ──
@@ -2772,6 +2772,9 @@ async function showDeleteDialog() {
 
   // ── 상태 ──
   let selectedFile = null; // { name, path, sha, source:'obs'|'drive', id? }
+
+  // ── 초기 탭 ──
+  switchTab(initialTab === 'drive' ? 'drive' : 'obs');
 
   function setSelected(f) {
     selectedFile = f;
@@ -3002,7 +3005,7 @@ async function showDeleteDialog() {
         setSelected(null);
         overlay.remove();
         showToast(`🗑 "${deletedName}" 삭제 완료`);
-        showDeleteDialog();
+        showDeleteDialog('obs');
         return;
 
       } else {
@@ -3027,7 +3030,7 @@ async function showDeleteDialog() {
         setSelected(null);
         overlay.remove();
         showToast(`🗑 "${deletedName}" 휴지통으로 이동됨`);
-        showDeleteDialog();
+        showDeleteDialog('drive');
         return;
       }
 
@@ -3040,8 +3043,6 @@ async function showDeleteDialog() {
     }
   };
 
-  // 초기 탭 로드
-  switchTab('obs');
 }
 
 async function showSaveDialog(name, folder) {
