@@ -1,4 +1,4 @@
-<!-- v260401012 - private_vault my_token 폴더 옵시디안 메뉴 연동 -->
+<!-- v260408001 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -489,8 +489,7 @@ async function pvGetRawFile(path) {
   if (!r.ok) throw new Error('파일 읽기 실패: ' + r.status);
   const data = await r.json();
   /* Base64 디코딩 */
-  return decodeURIComponent(escape(atob(data.content.replace(/
-/g, ''))));
+  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
 }
 
 // GitHub API 헬퍼
@@ -3447,8 +3446,6 @@ function toggleSimulation() {
 function zoomIn()    { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 1.4); }
 function zoomOut()   { if(graphZoom&&graphSvg) graphSvg.transition().duration(300).call(graphZoom.scaleBy, 0.7); }
 function resetZoom() { if(graphZoom&&graphSvg) graphSvg.transition().duration(500).call(graphZoom.transform, d3.zoomIdentity); }
-
-} // initObsidianGraph 닫힘
 
 </script>
 </body>
