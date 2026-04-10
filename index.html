@@ -1520,8 +1520,6 @@ function renderNewDoc() {
   const editorH = `calc(100vh - 240px)`;
   contentEl.innerHTML = `
   <div class="file-inner">
-    <div class="breadcrumb">문서 > 새 문서 작성</div>
-    <h2 style="margin-bottom:12px">✏️ 새 문서 작성</h2>
     <div class="editor-toolbar">
       <button class="editor-mode-btn active" id="nd-btn-edit"    onclick="ndSetMode('edit')">편집</button>
       <button class="editor-mode-btn"        id="nd-btn-split"   onclick="ndSetMode('split')">분할</button>
@@ -1696,7 +1694,6 @@ function recordDownload(name, id) {
   if (ex) { ex.count++; ex.lastDownload=now; }
   else s.push({ fileId:id, fileName:name, count:1, firstDownload:now, lastDownload:now });
   localStorage.setItem('downloadStats', JSON.stringify(s));
-  showDashboard();
 }
 
 async function recordVisit() {
