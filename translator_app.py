@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import os
 import threading
-import tkinter as tk
 import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional
 from xml.etree import ElementTree as ET
+
+try:
+    import tkinter as tk
+except ModuleNotFoundError:  # pragma: no cover - exercised in CLI-only environments
+    tk = None
 
 import requests
 from docx import Document
@@ -23,7 +27,10 @@ API_URL = "https://libretranslate.de/translate"
 
 
 class TranslationApp:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root) -> None:
+        if tk is None:
+            raise RuntimeError("Tkinter is not available in this environment.")
+
         self.root = root
         self.root.title("문서 번역 프로그램")
         self.root.geometry("760x460")
@@ -146,6 +153,9 @@ class TranslationApp:
 
 
 def choose_source_file() -> Optional[Path]:
+    if tk is None:
+        return None
+
     from tkinter import filedialog
 
     file_path = filedialog.askopenfilename(
@@ -362,11 +372,15 @@ def main() -> None:
         print(output_path)
         return
 
+    if tk is None:
+        print("GUI 환경이 없어 CLI 모드로 실행되었습니다. 파일 경로를 인자로 전달해 주세요.")
+        return
+
     try:
         root = tk.Tk()
         TranslationApp(root)
         root.mainloop()
-    except tk.TclError:
+    except Exception:
         print("GUI 환경이 없어 CLI 모드로 실행되었습니다. 파일 경로를 인자로 전달해 주세요.")
 
 

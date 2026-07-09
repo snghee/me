@@ -1,3 +1,4 @@
+import importlib
 import os
 import tempfile
 from pathlib import Path
@@ -75,3 +76,19 @@ def test_get_output_suffix_for_english():
     from translator_app import get_output_suffix
 
     assert get_output_suffix("en") == "영어"
+
+
+def test_module_imports_without_tkinter(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "tkinter":
+            raise ModuleNotFoundError("No module named 'tkinter'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    module = importlib.reload(importlib.import_module("translator_app"))
+
+    assert module.tk is None
